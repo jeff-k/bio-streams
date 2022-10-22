@@ -2,7 +2,3 @@
 name = "bio-streams"
 version = "0.1.0"
 edition = "2021"
-
-[dependencies]
-futures = "0.3"
-flate2 = "1"
