@@ -60,7 +60,7 @@ impl<R: BufRead, T> Fastq<R, T> {
 //}
 
 impl<R: BufRead, T: From<Vec<u8>>> Iterator for Fastq<R, T> {
-    type Item = Record<Vec<u8>>;
+    type Item = Record<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut name: Vec<u8> = Vec::new();
@@ -88,10 +88,14 @@ impl<R: BufRead, T: From<Vec<u8>>> Iterator for Fastq<R, T> {
         // read equal number of bytes for sequence and quality string
         assert_eq!(s_bs, q_bs);
 
+        name.truncate(n_bs - 1);
+        seq.truncate(s_bs - 1);
+        quality.truncate(q_bs - 1);
+
         Some(Record {
-            fields: name[..(n_bs - 1)].to_vec(),
-            seq: seq[..(s_bs - 1)].into(),
-            quality: quality[..(q_bs - 1)].to_vec(),
+            fields: name,
+            seq: seq.into(),
+            quality: quality,
         })
     }
 }
