@@ -1,18 +1,27 @@
 # bio-streams
 
+## examples
+
+To run the `fqcheck` example program with read files `r1.fq.gz` and `f2.fq.gz`:
+
+```
+$ cargo build --example fqcheck --release
+$ target/release/examples/fqcheck r1.fq.gz r2.fq.gz
+```
+
 todo:
 
-Type safety:
-* quality score trait, implement phred
+input streams:
 
-Async:
+* fastq
+* fasta
+* sam/bam
+* gfa
+
+todo:
+
+* quality score trait, `Phred` alias for `u8`
 * futures::streams for async
-
-GAT in-place memory track:
-&[u8] should deref coerce to &Vec<Phred>
-* deref coercion for bio-seq Seq<...>
-
-
-other:
+* GAT lending iterator
 * benchmark
 * examples

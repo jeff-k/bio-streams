@@ -1,4 +1,9 @@
+pub mod fasta;
 pub mod fastq;
+pub mod record;
+pub mod sam;
+
+pub use record::{Alignment, Record};
 
 #[cfg(test)]
 mod tests {

@@ -1,43 +1,11 @@
 use core::marker::PhantomData;
-use std::fmt;
 use std::io::BufRead;
-use std::str;
 
-//use futures::{StreamExt, Stream, AsyncRead};
+//use futures::{AsyncRead, Stream, StreamExt};
 //use futures::task::{Context, Poll};
 //use futures::io::BufReader;
 
-pub struct Record<T = Vec<u8>> {
-    pub fields: Vec<u8>,
-    pub seq: T,
-    pub quality: Vec<u8>,
-}
-
-impl fmt::Display for Record {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}\t{}",
-            str::from_utf8(&self.fields).unwrap(),
-            str::from_utf8(&self.seq).unwrap()
-        )
-    }
-}
-
-impl Record {
-    pub fn data_fields(self) -> Vec<Vec<u8>> {
-        //        self.fields.split(' ')
-        unimplemented!()
-    }
-
-    pub fn name(self) -> Vec<u8> {
-        unimplemented!()
-    }
-
-    pub fn description(self) -> Option<Vec<u8>> {
-        unimplemented!()
-    }
-}
+use crate::Record;
 
 pub struct Fastq<R: BufRead, T = Vec<u8>> {
     buf: R,
@@ -52,12 +20,6 @@ impl<R: BufRead, T> Fastq<R, T> {
         }
     }
 }
-
-//impl<R: BufRead, T> Fastq<R, T> {
-//    pub fn from_fq(path: &Path) -> Fastq<BufReader<File>, T> {
-//        Fastq { buf: BufReader::new(File::open(path).unwrap()), p: PhantomData }
-//    }
-//}
 
 impl<R: BufRead, T: From<Vec<u8>>> Iterator for Fastq<R, T> {
     type Item = Record<T>;
@@ -95,7 +57,31 @@ impl<R: BufRead, T: From<Vec<u8>>> Iterator for Fastq<R, T> {
         Some(Record {
             fields: name,
             seq: seq.into(),
-            quality: quality,
+            quality: Some(quality),
         })
     }
 }
+
+// TODO: interleaved fastqs parse 8 lines into tuple of (Record, Record)
+pub struct InterleavedFastq<R: BufRead, T = Vec<u8>> {
+    buf: R,
+    p: PhantomData<T>,
+}
+
+impl<R: BufRead, T: From<Vec<u8>>> Iterator for InterleavedFastq<R, T> {
+    type Item = (Record<T>, Record<T>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        unimplemented!()
+    }
+}
+
+/*
+impl<R: BufRead, T: From<Vec<u8>>> Stream
+
+impl<T> Fastq<T> {
+    fn borrow_next<'a>(&'a mut self) -> Option<&'a Record<T>> {
+        None
+    }
+}
+*/
