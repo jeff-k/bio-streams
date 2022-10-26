@@ -9,8 +9,6 @@ $ cargo build --example fqcheck --release
 $ target/release/examples/fqcheck r1.fq.gz r2.fq.gz
 ```
 
-todo:
-
 input streams:
 
 * fastq
