@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str;
 
-type Phred = u8;
+//type Phred = u8;
 
 pub struct Cigar;
 

@@ -1,10 +1,6 @@
 use core::marker::PhantomData;
 use std::io::BufRead;
 
-//use futures::{AsyncRead, Stream, StreamExt};
-//use futures::task::{Context, Poll};
-//use futures::io::BufReader;
-
 use crate::Record;
 
 pub struct Fastq<R: BufRead, T = Vec<u8>> {
@@ -63,6 +59,7 @@ impl<R: BufRead, T: From<Vec<u8>>> Iterator for Fastq<R, T> {
 }
 
 // TODO: interleaved fastqs parse 8 lines into tuple of (Record, Record)
+/*
 pub struct InterleavedFastq<R: BufRead, T = Vec<u8>> {
     buf: R,
     p: PhantomData<T>,
@@ -75,6 +72,7 @@ impl<R: BufRead, T: From<Vec<u8>>> Iterator for InterleavedFastq<R, T> {
         unimplemented!()
     }
 }
+*/
 
 /*
 impl<R: BufRead, T: From<Vec<u8>>> Stream
