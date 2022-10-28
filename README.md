@@ -13,8 +13,8 @@ input streams:
 
 * fastq
 * fasta
-* sam/bam
-* gfa
+* TODO sam/bam
+* TODO gfa
 
 todo:
 
