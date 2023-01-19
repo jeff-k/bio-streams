@@ -3,11 +3,13 @@ name = "bio-streams"
 version = "0.1.0"
 edition = "2021"
 
+[dependencies]
+futures = "0.3"
+
 [dev-dependencies]
 flate2 = "1.0"
 clap = { version="4", features=["derive"] }
 bio-seq = "0.8"
-futures = "0.3"
 
 [[example]]
 name = "fqcheck"
