@@ -1,27 +1,28 @@
 //extern crate futures;
 
 use core::marker::PhantomData;
-use futures::io::AsyncBufRead;
-use futures::AsyncBufReadExt;
+//use futures::io::AsyncBufRead;
+//use futures::AsyncBufReadExt;
 
 use std::task::{Context, Poll};
 
 use std::marker::Unpin;
 use std::pin::Pin;
 
-use futures::io::BufReader;
-use futures::stream::{Stream, StreamExt};
-//use std::io::BufRead;
+//use futures::io::BufReader;
+//use futures::stream::{Stream, StreamExt};
+use futures::stream::Stream;
+use std::io::BufRead;
 //use std::io::BufReader;
 
 use crate::Record;
 
-pub struct Fastq<R: AsyncBufRead, T = Vec<u8>> {
+pub struct Fastq<R: BufRead, T = Vec<u8>> {
     buf: Pin<Box<R>>,
     p: PhantomData<T>,
 }
 
-impl<R: AsyncBufRead + Into<Box<R>>, T> Fastq<R, T> {
+impl<R: BufRead + Into<Box<R>>, T> Fastq<R, T> {
     pub fn new(buf: R) -> Self {
         Fastq {
             buf: Box::pin(buf),
@@ -31,7 +32,7 @@ impl<R: AsyncBufRead + Into<Box<R>>, T> Fastq<R, T> {
 }
 
 /*
-impl<R: AsyncBufRead, T: From<Vec<u8>> + Unpin> Stream for Fastq<R, T> {
+impl<R: BufRead, T: From<Vec<u8>> + Unpin> Stream for Fastq<R, T> {
     type Item = Record<T>;
 
     fn poll_next(
@@ -39,10 +40,12 @@ impl<R: AsyncBufRead, T: From<Vec<u8>> + Unpin> Stream for Fastq<R, T> {
         cx: &mut Context<'_>,
     ) -> Poll<Option<<Self as Stream>::Item>> {
 
-        let b = self.get_mut().buf.as_mut();
+        let ref b = self.get_mut().buf.as_mut();
 
-        let mut name: Vec<u8> = Vec::new();
-        let nbs = b.read_until(b'\n', &name).await?;
+
+
+        let mut x: Vec<u8> = Vec::new();
+        let nbs = b.read_until(b'\n', &mut x);
 
         Poll::Ready(None)
     }
