@@ -42,19 +42,25 @@ impl<R: BufRead + Unpin, T: From<Vec<u8>> + Unpin> Stream for Fastq<R, T> {
     ) -> Poll<Option<<Self as Stream>::Item>> {
         //let mut r = unsafe { self.as_mut().map_unchecked_mut(|this| &mut this.buf) };
 
-        let mut x: Vec<u8> = Vec::new();
+        let mut fields: Vec<u8> = Vec::new();
+        let mut seq: Vec<u8> = Vec::new();
+        let mut sep: Vec<u8> = Vec::new();
+        let mut quality: Vec<u8> = Vec::new();
+
         let r = unsafe {
-            self.get_unchecked_mut()
-                .buf
-                .as_mut()
-                .read_until(b'\n', &mut x)
+            let mut x = self.get_unchecked_mut().buf.as_mut();
+
+            x.read_until(b'\n', &mut fields);
+            x.read_until(b'\n', &mut seq);
+            x.read_until(b'\n', &mut sep);
+            x.read_until(b'\n', &mut quality)
         };
 
         match r {
             Ok(0) => Poll::Ready(None),
             Ok(_n) => Poll::Ready(Some(Record {
-                fields: vec![].into(),
-                seq: x.into(),
+                fields: fields.into(),
+                seq: seq.into(),
                 quality: None,
             })),
             _ => Poll::Ready(None),
