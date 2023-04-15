@@ -30,20 +30,30 @@ fn main() {
     ));
 
     let mut count: usize = 0;
-    for (r1, r2) in fq1.zip(fq2) {
-        // check that the last characters of the name strings are 1 and 2
-        if r1.fields[r1.fields.len() - 1] != b'1' || r2.fields[r2.fields.len() - 1] != b'2' {
-            eprintln!("paired records do not end in 1/2");
-            exit(1);
-        }
+    for zipped in fq1.zip(fq2) {
+        match zipped {
+            (Ok(r1), Ok(r2)) => {
+                // check that the last characters of the name strings are 1 and 2
+                if r1.fields.as_bytes()[r1.fields.len() - 1] != b'1'
+                    || r2.fields.as_bytes()[r2.fields.len() - 1] != b'2'
+                {
+                    eprintln!("paired records do not end in 1/2");
+                    exit(1);
+                }
 
-        // check that the description fields are equal up to the last character
-        if r1.fields[..r1.fields.len() - 1] != r2.fields[..r2.fields.len() - 1] {
-            eprintln!("reads do not have the same names");
-            exit(1);
-        }
+                // check that the description fields are equal up to the last character
+                if r1.fields[..r1.fields.len() - 1] != r2.fields[..r2.fields.len() - 1] {
+                    eprintln!("reads do not have the same names");
+                    exit(1);
+                }
 
-        count += 1;
+                count += 1;
+            }
+            _ => {
+                eprintln!("Parse error in fastq files");
+                exit(1);
+            }
+        }
     }
     eprintln!("read files have {} matching name records.", count);
     exit(0);

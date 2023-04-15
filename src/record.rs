@@ -1,39 +1,48 @@
-use std::fmt;
-use std::str;
+use core::fmt;
+use core::str;
 
-//type Phred = u8;
+pub struct Phred(u8);
 
-pub struct Cigar;
-
-pub struct Record<T = Vec<u8>> {
-    pub fields: Vec<u8>,
-    pub seq: T,
-    pub quality: Option<Vec<u8>>,
-}
-
-pub struct Alignment<R = Record<Vec<u8>>> {
-    pub record: R,
-    pub quality: u8,
-    pub cigar: Option<Cigar>,
-}
-
-impl fmt::Display for Record {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}\t{}",
-            str::from_utf8(&self.fields).unwrap(),
-            str::from_utf8(&self.seq).unwrap()
-        )
+impl Phred {
+    pub fn to_float(self) -> f32 {
+        unimplemented!()
     }
 }
 
-impl<'a> Record {
-    pub fn name(self) -> &'a [u8] {
+impl From<u8> for Phred {
+    fn from(b: u8) -> Phred {
+        Phred(b)
+    }
+}
+
+//pub struct Cigar;
+
+pub struct Record<T> {
+    pub fields: String,
+    pub seq: T,
+    pub quality: Option<Vec<Phred>>,
+}
+
+/*
+pub struct Alignment<R = Record<Seq<A: Codec>>> {
+    pub record: R,
+    pub quality: Phred,
+    pub cigar: Option<Cigar>,
+}
+*/
+
+impl<T: fmt::Display> fmt::Display for Record<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}\t{}", &self.fields, &self.seq,)
+    }
+}
+
+impl<'a, T> Record<T> {
+    pub fn name(self) -> &'a str {
         unimplemented!()
     }
 
-    pub fn description(self) -> Option<&'a [u8]> {
+    pub fn description(self) -> Option<&'a str> {
         unimplemented!()
     }
 }

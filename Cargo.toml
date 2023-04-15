@@ -1,15 +1,17 @@
 [package]
 name = "bio-streams"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
 futures = "0.3"
+#bio-seq = "0.9"
+bio-seq = { path = "../bio-seq" }
 
 [dev-dependencies]
 flate2 = "1.0"
 clap = { version="4", features=["derive"] }
-bio-seq = "0.8"
+#bio-seq = { path="../bio-seq" }
 
 [[example]]
 name = "fqcheck"

@@ -1,60 +1,117 @@
+use bio_seq::prelude::*;
+
 use core::marker::PhantomData;
 use std::io::BufRead;
 
+use crate::record::Phred;
 use crate::Record;
 
-pub struct Fastq<R: BufRead, T = Vec<u8>> {
-    buf: R,
+#[derive(Debug)]
+pub struct FastqError {}
+
+pub struct Fastq<R: BufRead, T = String> {
+    reader: R,
+    buf: String,
     p: PhantomData<T>,
 }
 
 impl<R: BufRead, T> Fastq<R, T> {
-    pub fn new(buf: R) -> Self {
+    pub fn new(reader: R) -> Self {
         Fastq {
-            buf,
+            reader,
+            buf: String::with_capacity(512),
             p: PhantomData,
         }
     }
 }
 
-impl<R: BufRead, T: From<Vec<u8>>> Iterator for Fastq<R, T> {
-    type Item = Record<T>;
+impl<R: BufRead, A: Codec> Iterator for Fastq<R, Seq<A>> {
+    type Item = Result<Record<Seq<A>>, FastqError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut name: Vec<u8> = Vec::new();
-        let mut seq: Vec<u8> = Vec::new();
-        let mut delim: Vec<u8> = Vec::new();
-        let mut quality: Vec<u8> = Vec::new();
+        let mut fields = String::new();
+        let mut seq = Seq::<A>::new();
+        let mut quality = Vec::new();
 
-        // this includes the newline
-        let n_bs = self.buf.read_until(b'\n', &mut name).unwrap();
-        if n_bs == 0 {
-            // the stream has properly ended
-            return None;
+        loop {
+            self.buf.clear();
+            if self.reader.read_line(&mut self.buf).is_err() {
+                return None;
+            }
+            if self.buf.is_empty() {
+                break;
+            }
+            if self.buf.starts_with('@') {
+                if !fields.is_empty() {
+                    break;
+                }
+                fields = self.buf[1..].trim().to_string();
+            } else if self.buf.starts_with('+') {
+                continue;
+            } else if fields.is_empty() {
+                match Seq::<A>::try_from(self.buf.trim()) {
+                    Ok(parsed_seq) => seq.extend(&parsed_seq),
+                    Err(e) => {
+                        eprintln!("Error parsing sequence: {}", e);
+                        return None;
+                    }
+                }
+            } else {
+                quality.extend(self.buf.trim().as_bytes().iter().map(|q| Phred::from(*q)));
+            }
         }
-        assert_eq!(name[0], b'@');
 
-        let s_bs = self.buf.read_until(b'\n', &mut seq).unwrap();
+        if fields.is_empty() {
+            None
+        } else {
+            Some(Ok(Record {
+                fields,
+                seq,
+                quality: Some(quality),
+            }))
+        }
+    }
+}
 
-        // one option is to just consume the +\n line:
-        //self.buf.consume(2);
+impl<R: BufRead> Iterator for Fastq<R, String> {
+    type Item = Result<Record<String>, FastqError>;
 
-        let d_bs = self.buf.read_until(b'\n', &mut delim).unwrap();
-        assert_eq!(d_bs, 2);
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut fields = String::new();
+        let mut seq = String::with_capacity(512);
+        let mut quality = Vec::with_capacity(512);
 
-        let q_bs = self.buf.read_until(b'\n', &mut quality).unwrap();
-        // read equal number of bytes for sequence and quality string
-        assert_eq!(s_bs, q_bs);
+        loop {
+            self.buf.clear();
+            if self.reader.read_line(&mut self.buf).is_err() {
+                return None;
+            }
+            if self.buf.is_empty() {
+                break;
+            }
+            if self.buf.starts_with('@') {
+                if !fields.is_empty() {
+                    break;
+                }
+                fields = self.buf[1..].trim().to_string();
+            } else if self.buf.starts_with('+') {
+                continue;
+            } else if fields.is_empty() {
+                seq = self.buf.trim().to_string();
+            } else {
+                quality.extend(self.buf.trim().as_bytes().iter().map(|q| Phred::from(*q)));
+            }
+        }
 
-        name.truncate(n_bs - 1);
-        seq.truncate(s_bs - 1);
-        quality.truncate(q_bs - 1);
-
-        Some(Record {
-            fields: name,
-            seq: seq.into(),
-            quality: Some(quality),
-        })
+        if fields.is_empty() {
+            None
+        } else {
+            Some(Ok(Record {
+                fields,
+                seq,
+                quality: Some(quality),
+            }))
+        }
     }
 }
 
