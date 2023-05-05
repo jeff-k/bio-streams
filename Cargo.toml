@@ -15,3 +15,6 @@ bio-seq = "0.10"
 
 [[example]]
 name = "fqcheck"
+
+[[example]]
+name = "aminokmers"

@@ -17,7 +17,7 @@ impl<R: BufRead, T> Fasta<R, T> {
     pub fn new(reader: R) -> Self {
         Fasta {
             reader,
-            buf: String::with_capacity(128),
+            buf: String::with_capacity(512),
             p: PhantomData,
         }
     }
@@ -31,6 +31,7 @@ impl<R: BufRead, A: Codec> Iterator for Fasta<R, Seq<A>> {
         let mut seq = Seq::<A>::new();
 
         loop {
+            self.buf.clear();
             let read_res = self.reader.read_line(&mut self.buf);
             if let Err(e) = read_res {
                 eprintln!("Error reading line: {:?}", e);
@@ -53,7 +54,6 @@ impl<R: BufRead, A: Codec> Iterator for Fasta<R, Seq<A>> {
                     }
                 }
             }
-            self.buf.clear();
         }
 
         if fields.is_empty() {
