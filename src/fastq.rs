@@ -31,45 +31,52 @@ impl<R: BufRead, A: Codec> Iterator for Fastq<R, Seq<A>> {
     fn next(&mut self) -> Option<Self::Item> {
         let mut fields = String::new();
         let mut seq = Seq::<A>::new();
-        let mut quality = Vec::new();
+        let mut quality = Vec::with_capacity(512);
 
-        loop {
-            self.buf.clear();
-            if self.reader.read_line(&mut self.buf).is_err() {
-                return None;
-            }
-            if self.buf.is_empty() {
-                break;
-            }
-            if self.buf.starts_with('@') {
-                if !fields.is_empty() {
-                    break;
-                }
-                fields = self.buf[1..].trim().to_string();
-            } else if self.buf.starts_with('+') {
-                continue;
-            } else if fields.is_empty() {
-                match Seq::<A>::try_from(self.buf.trim()) {
-                    Ok(parsed_seq) => seq.extend(&parsed_seq),
-                    Err(e) => {
-                        eprintln!("Error parsing sequence: {}", e);
-                        return None;
-                    }
-                }
-            } else {
-                quality.extend(self.buf.trim().as_bytes().iter().map(|q| Phred::from(*q)));
+        self.buf.clear();
+        if self.reader.read_line(&mut self.buf).is_err() {
+            println!("error reading");
+            return None;
+        }
+        if self.buf.is_empty() {
+            println!("buf empty");
+            return None;
+        }
+        if !self.buf.starts_with('@') {
+            println!("no @ {}", self.buf);
+            return None;
+        }
+
+        fields = self.buf[1..].trim().to_string();
+
+        self.buf.clear();
+        self.reader.read_line(&mut self.buf);
+
+        match Seq::<A>::try_from(self.buf.trim()) {
+            Ok(parsed_seq) => seq.extend(&parsed_seq),
+            Err(e) => {
+                self.reader.read_line(&mut self.buf);
+                self.reader.read_line(&mut self.buf);
+                return Some(Err(FastqError {}));
             }
         }
 
-        if fields.is_empty() {
-            None
-        } else {
-            Some(Ok(Record {
-                fields,
-                seq,
-                quality: Some(quality),
-            }))
+        self.buf.clear();
+        self.reader.read_line(&mut self.buf);
+
+        if !self.buf.starts_with('+') {
+            return None;
         }
+
+        self.buf.clear();
+        self.reader.read_line(&mut self.buf);
+        quality.extend(self.buf.trim().as_bytes().iter().map(|q| Phred::from(*q)));
+
+        Some(Ok(Record {
+            fields,
+            seq,
+            quality: Some(quality),
+        }))
     }
 }
 
@@ -81,37 +88,41 @@ impl<R: BufRead> Iterator for Fastq<R, String> {
         let mut seq = String::with_capacity(512);
         let mut quality = Vec::with_capacity(512);
 
-        loop {
-            self.buf.clear();
-            if self.reader.read_line(&mut self.buf).is_err() {
-                return None;
-            }
-            if self.buf.is_empty() {
-                break;
-            }
-            if self.buf.starts_with('@') {
-                if !fields.is_empty() {
-                    break;
-                }
-                fields = self.buf[1..].trim().to_string();
-            } else if self.buf.starts_with('+') {
-                continue;
-            } else if fields.is_empty() {
-                seq = self.buf.trim().to_string();
-            } else {
-                quality.extend(self.buf.trim().as_bytes().iter().map(|q| Phred::from(*q)));
-            }
+        self.buf.clear();
+        if self.reader.read_line(&mut self.buf).is_err() {
+            return None;
+        }
+        if self.buf.is_empty() {
+            return None;
         }
 
-        if fields.is_empty() {
-            None
-        } else {
-            Some(Ok(Record {
-                fields,
-                seq,
-                quality: Some(quality),
-            }))
+        if !self.buf.starts_with('@') {
+            return None;
         }
+
+        fields = self.buf[1..].trim().to_string();
+
+        self.buf.clear();
+        self.reader.read_line(&mut self.buf);
+
+        seq = self.buf.trim().to_string();
+
+        self.buf.clear();
+        self.reader.read_line(&mut self.buf);
+
+        if !self.buf.starts_with('+') {
+            return None;
+        }
+
+        self.buf.clear();
+        self.reader.read_line(&mut self.buf);
+        quality.extend(self.buf.trim().as_bytes().iter().map(|q| Phred::from(*q)));
+
+        Some(Ok(Record {
+            fields,
+            seq,
+            quality: Some(quality),
+        }))
     }
 }
 
