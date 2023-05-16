@@ -1,5 +1,6 @@
 use core::fmt;
 use core::str;
+//use core::String;
 
 pub struct Phred(u8);
 
@@ -17,8 +18,8 @@ impl From<u8> for Phred {
 
 //pub struct Cigar;
 
-pub struct Record<T> {
-    pub fields: String,
+pub struct Record<T = Vec<u8>> {
+    pub fields: Vec<u8>,
     pub seq: T,
     pub quality: Option<Vec<Phred>>,
 }
@@ -33,7 +34,12 @@ pub struct Alignment<R = Record<Seq<A: Codec>>> {
 
 impl<T: fmt::Display> fmt::Display for Record<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}\t{}", &self.fields, &self.seq,)
+        write!(
+            f,
+            "{}\t{}",
+            String::from_utf8_lossy(&self.fields),
+            &self.seq,
+        )
     }
 }
 

@@ -34,8 +34,7 @@ fn main() {
         match zipped {
             (Ok(r1), Ok(r2)) => {
                 // check that the last characters of the name strings are 1 and 2
-                if r1.fields.as_bytes()[r1.fields.len() - 1] != b'1'
-                    || r2.fields.as_bytes()[r2.fields.len() - 1] != b'2'
+                if r1.fields[r1.fields.len() - 1] != b'1' || r2.fields[r2.fields.len() - 1] != b'2'
                 {
                     eprintln!("paired records do not end in 1/2");
                     exit(1);

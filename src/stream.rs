@@ -34,7 +34,7 @@ impl<R: BufRead + Into<Box<R>>, T> Fastq<R, T> {
 }
 
 impl<R: BufRead + Unpin, T: From<Vec<u8>> + Unpin> Stream for Fastq<R, T> {
-    type Item = Record<T>;
+    type Item = Result<Record<T>, String>;
 
     fn poll_next(
         self: Pin<&mut Self>,
@@ -50,20 +50,21 @@ impl<R: BufRead + Unpin, T: From<Vec<u8>> + Unpin> Stream for Fastq<R, T> {
         let r = unsafe {
             let mut x = self.get_unchecked_mut().buf.as_mut();
 
-            x.read_until(b'\n', &mut fields);
-            x.read_until(b'\n', &mut seq);
-            x.read_until(b'\n', &mut sep);
+            x.read_until(b'\n', &mut fields)
+                .map_err(|e| e.to_string())?;
+            x.read_until(b'\n', &mut seq).map_err(|e| e.to_string())?;
+            x.read_until(b'\n', &mut sep).map_err(|e| e.to_string())?;
             x.read_until(b'\n', &mut quality)
+                .map_err(|e| e.to_string())?
         };
-
         match r {
             Ok(0) => Poll::Ready(None),
-            Ok(_n) => Poll::Ready(Some(Record {
+            Ok(_n) => Poll::Ready(Some(Ok(Record {
                 fields: fields.into(),
                 seq: seq.into(),
                 quality: None,
-            })),
-            _ => Poll::Ready(None),
+            }))),
+            Err(e) => Poll::Ready(Some(Err(e))),
         }
     }
 }
