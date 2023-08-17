@@ -56,7 +56,9 @@ impl<R: BufRead, A: Codec> Iterator for Fastq<R, Seq<A>> {
 
         match Seq::<A>::try_from(&self.buf[..self.buf.len() - 2]) {
             Ok(parsed_seq) => seq.extend(&parsed_seq),
-            Err(_) => {
+            Err(_e) => {
+                //println!("{:?}", e);
+                //println!("{:?}", String::from_utf8_lossy(&self.buf));
                 match self.reader.read_until(b'\n', &mut self.buf) {
                     Ok(_) => (),
                     Err(_) => return Some(Err(FastqError {})),

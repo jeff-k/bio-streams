@@ -7,7 +7,7 @@ use bio_seq::prelude::*;
 #[derive(Debug)]
 pub struct FastaError {}
 
-pub struct Fasta<R: BufRead, T = String> {
+pub struct Fasta<R: BufRead, T = Seq<Dna>> {
     reader: R,
     buf: Vec<u8>,
     p: PhantomData<T>,
@@ -46,6 +46,9 @@ impl<R: BufRead, A: Codec> Iterator for Fasta<R, Seq<A>> {
                 }
                 fields = Vec::<u8>::from(&self.buf[1..self.buf.len() - 2]);
             } else {
+                if self.buf.len() < 2 {
+                    continue;
+                }
                 match Seq::<A>::try_from(&self.buf[..self.buf.len() - 2]) {
                     Ok(parsed_seq) => seq.extend(&parsed_seq),
                     Err(e) => {
