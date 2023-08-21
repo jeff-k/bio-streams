@@ -1,130 +1,140 @@
-use bio_seq::prelude::*;
+use core::marker::{PhantomData, Unpin};
 
-use core::marker::PhantomData;
 use std::io::BufRead;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
+use futures::stream::Stream;
+
+use bio_seq::prelude::*;
 
 use crate::record::Phred;
 use crate::Record;
 
 #[derive(Debug)]
-pub struct FastqError {}
+pub enum FastqError {
+    InvalidSeparationLine,
+    InvalidId,
+    TruncatedRecord,
+    InvalidSequence,
+    InvalidQuality,
+    FileError,
+}
 
-pub struct Fastq<R: BufRead, T = Seq<Dna>> {
-    reader: R,
-    buf: Vec<u8>,
+pub struct Fastq<R: BufRead, T = Seq<Dna>>
+where
+    T: for<'a> TryFrom<&'a [u8]>,
+{
+    reader: Pin<Box<R>>,
+    id_buf: Vec<u8>,
+    seq_buf: Vec<u8>,
+    sep_buf: Vec<u8>,
+    qual_buf: Vec<u8>,
     p: PhantomData<T>,
 }
 
-impl<R: BufRead, T> Fastq<R, T> {
+impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Unpin for Fastq<R, T> {}
+
+impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fastq<R, T> {
     pub fn new(reader: R) -> Self {
         Fastq {
-            reader,
-            buf: Vec::<u8>::with_capacity(512),
+            reader: Box::pin(reader),
+            id_buf: Vec::<u8>::with_capacity(256),
+            seq_buf: Vec::<u8>::with_capacity(512),
+            sep_buf: Vec::<u8>::with_capacity(4),
+            qual_buf: Vec::<u8>::with_capacity(512),
             p: PhantomData,
         }
     }
-}
 
-impl<R: BufRead, A: Codec> Iterator for Fastq<R, Seq<A>> {
-    type Item = Result<Record<Seq<A>>, FastqError>;
+    fn parse_record(&mut self) -> Option<Result<Record<T>, FastqError>> {
+        let mut quality = Vec::<Phred>::new();
+        let reader = Pin::get_mut(self.reader.as_mut());
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut seq = Seq::<A>::new();
-        let mut quality = Vec::with_capacity(512);
+        self.id_buf.clear();
+        self.seq_buf.clear();
+        self.sep_buf.clear();
+        self.qual_buf.clear();
 
-        self.buf.clear();
-        if self.reader.read_until(b'\n', &mut self.buf).is_err() {
-            println!("error reading");
+        if reader.read_until(b'\n', &mut self.id_buf).is_err() {
+            return Some(Err(FastqError::FileError));
+        }
+        if self.id_buf.is_empty() {
+            // This is the only condition where an empty reader means
+            // that the file has successfully finished reading
             return None;
         }
-        if self.buf.is_empty() {
-            println!("buf empty");
-            return None;
-        }
-        if !self.buf[0] == b'@' {
-            println!("no @ {}", String::from_utf8_lossy(&self.buf));
-            return None;
+        // The id line must begin with '@'
+        if self.id_buf[0] != b'@' {
+            return Some(Err(FastqError::InvalidId));
         }
 
-        let fields = Vec::<u8>::from(&self.buf[1..self.buf.len() - 2]);
-
-        self.buf.clear();
-        match self.reader.read_until(b'\n', &mut self.buf) {
-            Ok(_) => (),
-            Err(_) => return Some(Err(FastqError {})),
+        if reader.read_until(b'\n', &mut self.seq_buf).is_err() {
+            return Some(Err(FastqError::FileError));
+        }
+        if self.seq_buf.is_empty() {
+            return Some(Err(FastqError::TruncatedRecord));
         }
 
-        match Seq::<A>::try_from(&self.buf[..self.buf.len() - 2]) {
-            Ok(parsed_seq) => seq.extend(&parsed_seq),
-            Err(_e) => {
-                //println!("{:?}", e);
-                //println!("{:?}", String::from_utf8_lossy(&self.buf));
-                match self.reader.read_until(b'\n', &mut self.buf) {
-                    Ok(_) => (),
-                    Err(_) => return Some(Err(FastqError {})),
-                }
-
-                match self.reader.read_until(b'\n', &mut self.buf) {
-                    Ok(_) => (),
-                    Err(_) => return Some(Err(FastqError {})),
-                }
-
-                return Some(Err(FastqError {}));
-            }
+        if reader.read_until(b'\n', &mut self.sep_buf).is_err() {
+            return Some(Err(FastqError::FileError));
+        }
+        if self.sep_buf.is_empty() {
+            return Some(Err(FastqError::TruncatedRecord));
         }
 
-        self.buf.clear();
-        match self.reader.read_until(b'\n', &mut self.buf) {
-            Ok(_) => (),
-            Err(_) => return Some(Err(FastqError {})),
+        // Detect whether the '+' separation line is valid
+        if self.sep_buf.len() != 2 || self.sep_buf[0] != b'+' {
+            return Some(Err(FastqError::InvalidSeparationLine));
+        }
+        if reader.read_until(b'\n', &mut self.qual_buf).is_err() {
+            return Some(Err(FastqError::FileError));
+        }
+        if self.qual_buf.is_empty() {
+            return Some(Err(FastqError::TruncatedRecord));
         }
 
-        if !self.buf[0] == b'+' {
-            return None;
+        // Parse the contents of the sequence and quality lines
+        if self.qual_buf.len() != self.seq_buf.len() {
+            return Some(Err(FastqError::InvalidQuality));
         }
 
-        self.buf.clear();
-        match self.reader.read_until(b'\n', &mut self.buf) {
-            Ok(_) => (),
-            Err(_) => return Some(Err(FastqError {})),
-        }
+        let seq = match T::try_from(&self.seq_buf[..self.seq_buf.len() - 2]) {
+            Ok(parsed_seq) => parsed_seq,
+            Err(_) => return Some(Err(FastqError::InvalidSequence)),
+        };
 
         quality.extend(
-            self.buf[..self.buf.len() - 2]
+            self.qual_buf[..self.qual_buf.len() - 2]
                 .iter()
                 .map(|q| Phred::from(*q)),
         );
 
         Some(Ok(Record {
-            fields,
+            fields: Vec::<u8>::from(&self.id_buf[1..self.id_buf.len() - 2]),
             seq,
             quality: Some(quality),
         }))
     }
 }
 
-// TODO: interleaved fastqs parse 8 lines into tuple of (Record, Record)
-/*
-pub struct InterleavedFastq<R: BufRead, T = Vec<u8>> {
-    buf: R,
-    p: PhantomData<T>,
-}
-
-impl<R: BufRead, T: From<Vec<u8>>> Iterator for InterleavedFastq<R, T> {
-    type Item = (Record<T>, Record<T>);
+impl<R: BufRead + Unpin, A: Codec> Iterator for Fastq<R, Seq<A>> {
+    type Item = Result<Record<Seq<A>>, FastqError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        unimplemented!()
+        self.parse_record()
     }
 }
-*/
 
-/*
-impl<R: BufRead, T: From<Vec<u8>>> Stream
+impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Stream for Fastq<R, T> {
+    type Item = Result<Record<T>, FastqError>;
 
-impl<T> Fastq<T> {
-    fn borrow_next<'a>(&'a mut self) -> Option<&'a Record<T>> {
-        None
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<Option<<Self as Stream>::Item>> {
+        let record = unsafe { self.get_unchecked_mut().parse_record() };
+
+        Poll::Ready(record)
     }
 }
-*/
