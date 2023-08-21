@@ -1,6 +1,7 @@
 use core::fmt;
 use core::str;
 
+#[derive(Debug, PartialEq)]
 pub struct Phred(u8);
 
 impl Phred {
@@ -17,6 +18,7 @@ impl From<u8> for Phred {
 
 //pub struct Cigar;
 
+#[derive(Debug, PartialEq)]
 pub struct Record<T: for<'a> TryFrom<&'a [u8]> = Vec<u8>> {
     pub fields: Vec<u8>,
     pub seq: T,

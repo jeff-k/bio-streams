@@ -11,7 +11,7 @@ use bio_seq::prelude::*;
 use crate::record::Phred;
 use crate::Record;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum FastqError {
     InvalidSeparationLine,
     InvalidId,
@@ -99,19 +99,19 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fastq<R, T
             return Some(Err(FastqError::InvalidQuality));
         }
 
-        let seq = match T::try_from(&self.seq_buf[..self.seq_buf.len() - 2]) {
+        let seq = match T::try_from(&self.seq_buf[..self.seq_buf.len() - 1]) {
             Ok(parsed_seq) => parsed_seq,
             Err(_) => return Some(Err(FastqError::InvalidSequence)),
         };
 
         quality.extend(
-            self.qual_buf[..self.qual_buf.len() - 2]
+            self.qual_buf[..self.qual_buf.len() - 1]
                 .iter()
                 .map(|q| Phred::from(*q)),
         );
 
         Some(Ok(Record {
-            fields: Vec::<u8>::from(&self.id_buf[1..self.id_buf.len() - 2]),
+            fields: Vec::<u8>::from(&self.id_buf[1..self.id_buf.len() - 1]),
             seq,
             quality: Some(quality),
         }))
@@ -136,5 +136,80 @@ impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Stream for Fastq<
         let record = unsafe { self.get_unchecked_mut().parse_record() };
 
         Poll::Ready(record)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_test::task::noop_waker;
+    use std::io::Cursor;
+    use std::task::{Context, Poll};
+
+    #[test]
+    fn test_fastq_iterator() {
+        let data = b"@SEQ_ID_1
+ACTCGATCGCGACG
++
+FFFFFFFFFFFFFF
+@SEQ_ID_2
+CATCGACTACGGCG
++
+GGGGGGGGGGGGGG\n";
+        let reader = Cursor::new(data as &[u8]);
+        let mut fastq: Fastq<Cursor<&[u8]>, Seq<Dna>> = Fastq::new(reader);
+
+        let record1 = fastq.next().unwrap().unwrap();
+        assert_eq!(record1.fields, b"SEQ_ID_1".to_vec());
+        assert_eq!(record1.seq, dna!("ACTCGATCGCGACG"));
+        //        assert_eq!(record1.quality, "FFFFFFFFFFFFFF");
+
+        let record2 = fastq
+            .next()
+            .expect("Expected a record")
+            .expect("Expected valid record");
+        assert_eq!(record2.fields, b"SEQ_ID_2".to_vec());
+        assert_eq!(record2.seq, dna!("CATCGACTACGGCG"));
+
+        assert!(fastq.next().is_none(), "Expected no more records");
+    }
+
+    #[test]
+    fn test_fastq_poll_next() {
+        let data = b"@SEQ_ID_1
+ACTCGATCGCGACG
++
+FFFFFFFFFFFFFF
+@SEQ_ID_2
+CATCGACTACGGCG
++
+GGGGGGGGGGGGGG\n";
+
+        let reader = Cursor::new(data as &[u8]);
+        let mut fastq: Pin<Box<Fastq<Cursor<&[u8]>, Seq<Dna>>>> =
+            Pin::new(Box::new(Fastq::new(reader)));
+
+        let waker = noop_waker();
+        let mut cx = Context::from_waker(&waker);
+
+        // Manual polling using poll_next
+        match fastq.as_mut().poll_next(&mut cx) {
+            Poll::Ready(Some(Ok(record))) => {
+                assert_eq!(record.fields, b"SEQ_ID_1".to_vec());
+                assert_eq!(record.seq, dna!("ACTCGATCGCGACG"));
+                // assert_eq!(record.quality, "FFFFFFFFFFFFFF");
+            }
+            _ => panic!("Unexpected result"),
+        }
+
+        match fastq.as_mut().poll_next(&mut cx) {
+            Poll::Ready(Some(Ok(record))) => {
+                assert_eq!(record.fields, b"SEQ_ID_2".to_vec());
+                assert_eq!(record.seq, dna!("CATCGACTACGGCG"));
+            }
+            _ => panic!("Unexpected result"),
+        }
+
+        assert_eq!(fastq.as_mut().poll_next(&mut cx), Poll::Ready(None));
     }
 }
