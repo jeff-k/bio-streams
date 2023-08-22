@@ -23,7 +23,8 @@ where
     T: for<'a> TryFrom<&'a [u8]>,
 {
     reader: Pin<Box<R>>,
-    buf: Vec<u8>,
+    line_buf: Vec<u8>,
+    field_buf: Option<Vec<u8>>,
     p: PhantomData<T>,
 }
 
@@ -33,34 +34,66 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fasta<R, T
     pub fn new(reader: R) -> Self {
         Fasta {
             reader: Box::pin(reader),
-            buf: Vec::<u8>::with_capacity(256),
+            line_buf: Vec::<u8>::with_capacity(256),
+            field_buf: None,
             p: PhantomData,
         }
     }
 
     fn parse_record(&mut self) -> Option<Result<Record<T>, FastaError>> {
-        let mut fields: Vec<u8> = Vec::new();
         let reader = Pin::get_mut(self.reader.as_mut());
 
-        self.buf.clear();
+        let mut seq_buf: Vec<u8> = Vec::new();
 
-        // unlike with the fastq parser, this will read an arbitrary number of lines
-        // to construct the sequence of a record. So this will be in a loop:
-        if reader.read_until(b'\n', &mut self.buf).is_err() {
-            // ...
+        // if field_buf is None, first line should start with '>'
+        if self.field_buf.is_none() {
+            if let Ok(size) = reader.read_until(b'\n', &mut self.line_buf) {
+                if size == 0 {
+                    // end of stream before a record (empty stream)
+                    return None;
+                }
 
-            // if this is the first id line for a record, starting with '>':
-            fields = Vec::<u8>::from(&self.buf[1..self.buf.len() - 1]);
+                if self.line_buf[0] == b'>' {
+                    self.field_buf = Some(Vec::from(&self.line_buf[1..self.line_buf.len() - 1]));
+                } else {
+                    return Some(Err(FastaError::InvalidId));
+                }
+                self.line_buf.clear();
+            }
         }
 
-        // construct the seq
-        let seq: T = unimplemented!();
+        // Read the next non-'>' lines into the sequence buffer
+        while let Ok(size) = reader.read_until(b'\n', &mut self.line_buf) {
+            if size == 0 {
+                // end of stream
+                break;
+            }
+            if self.line_buf[0] == b'>' {
+                // new record starts
+                break;
+            } else {
+                // treat this line as sequence
+                seq_buf.extend_from_slice(&self.line_buf[..self.line_buf.len() - 1]);
+                self.line_buf.clear();
+            }
+        }
 
-        Some(Ok(Record {
-            fields,
-            seq,
-            quality: None,
-        }))
+        // return working record
+        if let Some(fields) = self.field_buf.take() {
+            let seq = match T::try_from(&seq_buf) {
+                Ok(s) => s,
+                Err(_) => {
+                    return Some(Err(FastaError::InvalidSequence));
+                }
+            };
+            return Some(Ok(Record {
+                fields,
+                seq,
+                quality: None,
+            }));
+        }
+
+        None
     }
 }
 
@@ -93,7 +126,7 @@ mod tests {
     use std::task::{Context, Poll};
 
     #[test]
-    fn test_fastq_iterator() {
+    fn test_fasta_iterator() {
         let data = b">SEQ_ID_1
 ACTCGATCGCGACG
 ACACGATCGCGCGC
@@ -101,27 +134,27 @@ CATCGACTACGGCG
 >SEQ_ID_2
 GGGGGGGGGGGGGG\n";
         let reader = Cursor::new(data as &[u8]);
-        let mut fastq: Fasta<Cursor<&[u8]>, Seq<Dna>> = Fasta::new(reader);
+        let mut fasta: Fasta<Cursor<&[u8]>, Seq<Dna>> = Fasta::new(reader);
 
-        let record1 = fastq.next().unwrap().unwrap();
+        let record1 = fasta.next().unwrap().unwrap();
         assert_eq!(record1.fields, b"SEQ_ID_1".to_vec());
         assert_eq!(
             record1.seq,
             dna!("ACTCGATCGCGACGACACGATCGCGCGCCATCGACTACGGCG")
         );
 
-        let record2 = fastq
+        let record2 = fasta
             .next()
             .expect("Expected a record")
             .expect("Expected valid record");
         assert_eq!(record2.fields, b"SEQ_ID_2".to_vec());
         assert_eq!(record2.seq, dna!("GGGGGGGGGGGGGG"));
 
-        assert!(fastq.next().is_none(), "Expected no more records");
+        assert!(fasta.next().is_none(), "Expected no more records");
     }
 
     #[test]
-    fn test_fastq_poll_next() {
+    fn test_fasta_poll_next() {
         let data = b">SEQ_ID_1
 ACTCGATCGCGACG
 ACACGATCGCGCGC
@@ -130,14 +163,14 @@ CATCGACTACGGCG
 GGGGGGGGGGGGGG\n";
 
         let reader = Cursor::new(data as &[u8]);
-        let mut fastq: Pin<Box<Fastq<Cursor<&[u8]>, Seq<Dna>>>> =
-            Pin::new(Box::new(Fastq::new(reader)));
+        let mut fasta: Pin<Box<Fasta<Cursor<&[u8]>, Seq<Dna>>>> =
+            Pin::new(Box::new(Fasta::new(reader)));
 
         let waker = noop_waker();
         let mut cx = Context::from_waker(&waker);
 
         // Manual polling using poll_next
-        match fastq.as_mut().poll_next(&mut cx) {
+        match fasta.as_mut().poll_next(&mut cx) {
             Poll::Ready(Some(Ok(record))) => {
                 assert_eq!(record.fields, b"SEQ_ID_1".to_vec());
                 assert_eq!(
@@ -148,7 +181,7 @@ GGGGGGGGGGGGGG\n";
             _ => panic!("Unexpected result"),
         }
 
-        match fastq.as_mut().poll_next(&mut cx) {
+        match fasta.as_mut().poll_next(&mut cx) {
             Poll::Ready(Some(Ok(record))) => {
                 assert_eq!(record.fields, b"SEQ_ID_2".to_vec());
                 assert_eq!(record.seq, dna!("GGGGGGGGGGGGGG"));
@@ -156,6 +189,6 @@ GGGGGGGGGGGGGG\n";
             _ => panic!("Unexpected result"),
         }
 
-        assert_eq!(fastq.as_mut().poll_next(&mut cx), Poll::Ready(None));
+        assert_eq!(fasta.as_mut().poll_next(&mut cx), Poll::Ready(None));
     }
 }
