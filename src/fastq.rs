@@ -162,7 +162,7 @@ GGGGGGGGGGGGGG\n";
         let record1 = fastq.next().unwrap().unwrap();
         assert_eq!(record1.fields, b"SEQ_ID_1".to_vec());
         assert_eq!(record1.seq, dna!("ACTCGATCGCGACG"));
-        //        assert_eq!(record1.quality, "FFFFFFFFFFFFFF");
+        //assert_eq!(record1.quality, b"FFFFFFFFFFFFFF");
 
         let record2 = fastq
             .next()
@@ -197,7 +197,7 @@ GGGGGGGGGGGGGG\n";
             Poll::Ready(Some(Ok(record))) => {
                 assert_eq!(record.fields, b"SEQ_ID_1".to_vec());
                 assert_eq!(record.seq, dna!("ACTCGATCGCGACG"));
-                // assert_eq!(record.quality, "FFFFFFFFFFFFFF");
+                //assert_eq!(record.quality, "FFFFFFFFFFFFFF");
             }
             _ => panic!("Unexpected result"),
         }
