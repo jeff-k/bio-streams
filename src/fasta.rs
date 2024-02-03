@@ -28,7 +28,7 @@ where
     p: PhantomData<T>,
 }
 
-fn end_pos(line_buf: &Vec<u8>) -> usize {
+fn end_pos(line_buf: &[u8]) -> usize {
     if line_buf.ends_with(b"\r\n") {
         line_buf.len() - 2
     } else if line_buf.ends_with(b"\n") {

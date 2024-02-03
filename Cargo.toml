@@ -9,7 +9,7 @@ futures-test = "0.3"
 bio-seq = { path="../bio-seq" }
 
 [dev-dependencies]
-flate2 = "1.0"
+flate2 = "1"
 clap = { version="4", features=["derive"] }
 bio-seq = { path="../bio-seq" }
 
