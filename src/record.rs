@@ -1,7 +1,7 @@
 use core::fmt;
 use core::str;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Phred(u8);
 
 impl Phred {
@@ -13,6 +13,12 @@ impl Phred {
 impl From<u8> for Phred {
     fn from(b: u8) -> Phred {
         Phred(b)
+    }
+}
+
+impl From<Phred> for u8 {
+    fn from(phred: Phred) -> Self {
+        phred.0
     }
 }
 
