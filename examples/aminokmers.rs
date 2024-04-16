@@ -26,7 +26,7 @@ fn main() {
 
     let mut count: usize = 0;
     let mut total: usize = 0;
-    let mut histo = Box::new([0u64; 1 << (K * Amino::WIDTH as usize)]);
+    let mut histo = Box::new([0u64; 1 << (K * Amino::BITS as usize)]);
 
     for contig in faa {
         for kmer in contig.unwrap().seq.kmers::<K>() {
@@ -48,6 +48,6 @@ fn main() {
     }
     println!(
         "Read {} contigs. Showing counts of {}-mers that occur more than {} times ({} total). {}/{} of possible {}-mers have a count of 0.",
-        count, K, n, total, empty_counts, 1 << (K * Amino::WIDTH as usize), K,
+        count, K, n, total, empty_counts, 1 << (K * Amino::BITS as usize), K,
     );
 }

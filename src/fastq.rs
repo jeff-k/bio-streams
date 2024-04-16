@@ -14,9 +14,9 @@ use crate::Record;
 #[derive(Debug, PartialEq)]
 pub enum FastqError {
     InvalidSeparationLine,
-    InvalidId,
+    InvalidId(String),
     TruncatedRecord,
-    InvalidSequence,
+    InvalidSequence(String),
     InvalidQuality,
     FileError,
 }
@@ -66,7 +66,7 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fastq<R, T
         }
         // The id line must begin with '@'
         if self.id_buf[0] != b'@' {
-            return Some(Err(FastqError::InvalidId));
+            return Some(Err(FastqError::InvalidId(format!("{:?}", &self.id_buf))));
         }
 
         if reader.read_until(b'\n', &mut self.seq_buf).is_err() {
@@ -101,7 +101,12 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fastq<R, T
 
         let seq = match T::try_from(&self.seq_buf[..self.seq_buf.len() - 1]) {
             Ok(parsed_seq) => parsed_seq,
-            Err(_) => return Some(Err(FastqError::InvalidSequence)),
+            Err(_) => {
+                return Some(Err(FastqError::InvalidSequence(format!(
+                    "{:?}",
+                    &self.seq_buf
+                ))))
+            }
         };
 
         quality.extend(
