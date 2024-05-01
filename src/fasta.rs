@@ -12,7 +12,7 @@ use crate::Record;
 
 #[derive(Debug, PartialEq)]
 pub enum FastaError {
-    InvalidId,
+    InvalidId(String),
     TruncatedRecord,
     InvalidSequence,
     FileError,
@@ -67,11 +67,13 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fasta<R, T
                     //                    let end = end_pos(&self.line_buf);
                     Vec::from(&self.line_buf[1..end_pos(&self.line_buf)])
                 } else {
-                    return Some(Err(FastaError::InvalidId));
+                    return Some(Err(FastaError::InvalidId(
+                        String::from_utf8_lossy(&self.line_buf).into_owned(),
+                    )));
                 }
             } else {
                 // premature end of fasta?
-                return Some(Err(FastaError::InvalidId));
+                return Some(Err(FastaError::TruncatedRecord));
             }
         } else {
             self.field_buf.take().unwrap()

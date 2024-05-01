@@ -66,7 +66,9 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fastq<R, T
         }
         // The id line must begin with '@'
         if self.id_buf[0] != b'@' {
-            return Some(Err(FastqError::InvalidId(format!("{:?}", &self.id_buf))));
+            return Some(Err(FastqError::InvalidId(
+                String::from_utf8_lossy(&self.id_buf).into_owned(),
+            )));
         }
 
         if reader.read_until(b'\n', &mut self.seq_buf).is_err() {
@@ -102,10 +104,9 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fastq<R, T
         let seq = match T::try_from(&self.seq_buf[..self.seq_buf.len() - 1]) {
             Ok(parsed_seq) => parsed_seq,
             Err(_) => {
-                return Some(Err(FastqError::InvalidSequence(format!(
-                    "{:?}",
-                    &self.seq_buf
-                ))))
+                return Some(Err(FastqError::InvalidSequence(
+                    String::from_utf8_lossy(&self.seq_buf).into_owned(),
+                )))
             }
         };
 
