@@ -9,8 +9,7 @@
 
 #### This crate is in early development. Contributions are very welcome.
 
-Webassembly example: (https://jeff-k.github.io/fqdemo/)[Remove non M. TB reads from streaming fastqs], (https://jeff-k.github.io/amplicon-tiling/)[amplicon bases SARS-CoV-2 assembly]
-</div>
+Webassembly examples: [Remove non M. TB reads from streaming fastqs](https://jeff-k.github.io/fqdemo/), [amplicon based SARS-CoV-2 assembly](https://jeff-k.github.io/amplicon-tiling/)</div>
 
 ## Features
 
@@ -28,6 +27,7 @@ Records can be read into custom types: `pub struct Fastq<R: BufRead, T = Seq<Dna
 
 ## Examples
 
+### Stream a pair of fastqs and check some conditions on their name fields
 ```rust
 // Open a pair of gzipped fastq files as streams of `Record`s with `Seq<Dna>` sequences
 
@@ -51,7 +51,6 @@ for zipped in fq1.zip(fq2) {
             // check that the description fields are equal up to the last character
             if r1.fields[..r1.fields.len() - 1] != r2.fields[..r2.fields.len() - 1] {
                 eprintln!("reads do not have the same names");
-                exit(1);
             }
         }
         _ => {
@@ -67,6 +66,34 @@ To run the `fqcheck` example program with read files `r1.fq.gz` and `f2.fq.gz`:
 $ cargo build --example fqcheck --release
 $ target/release/examples/fqcheck r1.fq.gz r2.fq.gz
 ```
+
+### Count amino acid k-mers
+
+```rust
+// this opens a gzipped data stream and parses it into `Records` with `Seq<Amino>` sequence fields
+let faa: Fasta<BufReader<File>, Seq<Amino>> =
+    Fasta::new(BufReader::new(File::open(&faa_file).unwrap()));
+
+// we can convert amino acid k-mers directly into usizes and use them to index into a table
+let mut histogram = Box::new([0u64; 1 << (K * Amino::BITS as usize)]);
+
+for contig in faa {
+    // here "contig" is a fasta record
+    for kmer in contig.unwrap().seq.kmers::<K>() {
+        histogram[usize::from(kmer)] += 1;
+    }
+}
+```
+
+
+To run the `aminokmers` example program with fasta file `proteins.faa`:
+
+```
+$ cargo build --example fqcheck --release
+$ target/release/examples/aminokmers proteins.faa
+```
+
+## Roadmap
 
 input streams:
 
