@@ -2,6 +2,12 @@
 name = "bio-streams"
 version = "0.3.0"
 edition = "2021"
+authors = ["jeff-k <jeff_k@fastmail.com>"]
+description = "Streaming bioinformatics data types"
+homepage = "https://github.com/jeff-k/bio-streams"
+license = "MIT"
+keywords = ["bioinformatics", "fasta", "fastq", "genomics"]
+readme = "README.md"
 
 [dependencies]
 futures = "0.3"
