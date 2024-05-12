@@ -6,12 +6,12 @@ edition = "2021"
 [dependencies]
 futures = "0.3"
 futures-test = "0.3"
-bio-seq = { path="../bio-seq/bio-seq" }
+bio-seq = "0.12"
 
 [dev-dependencies]
 flate2 = "1"
 clap = { version="4", features=["derive"] }
-bio-seq = { path="../bio-seq/bio-seq" }
+bio-seq = "0.12"
 
 [[example]]
 name = "fqcheck"
