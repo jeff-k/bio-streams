@@ -1,6 +1,3 @@
-extern crate bio_seq;
-extern crate bio_streams;
-
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
@@ -30,7 +27,7 @@ fn main() {
 
     for contig in faa {
         for kmer in contig.unwrap().seq.kmers::<K>() {
-            histo[usize::from(kmer)] += 1;
+            histo[usize::from(&kmer)] += 1;
             total += 1;
         }
         count += 1;

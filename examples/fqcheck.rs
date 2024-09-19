@@ -1,6 +1,3 @@
-extern crate bio_streams;
-extern crate flate2;
-
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
