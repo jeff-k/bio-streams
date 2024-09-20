@@ -1,8 +1,10 @@
 use core::marker::{PhantomData, Unpin};
 
+use std::fmt;
 use std::io::BufRead;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+//use std::error;
 
 use futures::stream::Stream;
 
@@ -20,6 +22,28 @@ pub enum FastqError {
     InvalidQuality,
     FileError,
 }
+
+impl fmt::Display for FastqError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FastqError::InvalidSeparationLine => write!(f, "Invalid separation character"),
+            FastqError::InvalidId(id) => write!(f, "Invalid id: {id}"),
+            FastqError::TruncatedRecord => write!(f, "Truncated record"),
+            FastqError::InvalidSequence(seq) => write!(f, "Invalid sequence: {seq}"),
+            FastqError::InvalidQuality => write!(f, "Invalid quailty string"),
+            FastqError::FileError => write!(f, "File error"),
+        }
+    }
+}
+
+/*
+impl error::Error for FastqError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+        }
+    }
+}
+    */
 
 pub struct Fastq<R: BufRead, T = Seq<Dna>>
 where
