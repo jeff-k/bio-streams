@@ -8,15 +8,7 @@ use futures::stream::Stream;
 
 use bio_seq::prelude::*;
 
-use crate::Record;
-
-#[derive(Debug, PartialEq)]
-pub enum FastaError {
-    InvalidId(String),
-    TruncatedRecord,
-    InvalidSequence,
-    FileError,
-}
+use crate::{FastxError, Reader, Record};
 
 pub struct Fasta<R: BufRead, T = Seq<Dna>>
 where
@@ -50,7 +42,7 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fasta<R, T
         }
     }
 
-    fn parse_record(&mut self) -> Option<Result<Record<T>, FastaError>> {
+    fn parse_record(&mut self) -> Option<Result<Record<T>, FastxError>> {
         let reader = Pin::get_mut(self.reader.as_mut());
 
         let mut seq_buf: Vec<u8> = Vec::new();
@@ -67,13 +59,13 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fasta<R, T
                     //                    let end = end_pos(&self.line_buf);
                     Vec::from(&self.line_buf[1..end_pos(&self.line_buf)])
                 } else {
-                    return Some(Err(FastaError::InvalidId(
+                    return Some(Err(FastxError::InvalidId(
                         String::from_utf8_lossy(&self.line_buf).into_owned(),
                     )));
                 }
             } else {
                 // premature end of fasta?
-                return Some(Err(FastaError::TruncatedRecord));
+                return Some(Err(FastxError::TruncatedRecord));
             }
         } else {
             self.field_buf.take().unwrap()
@@ -100,7 +92,7 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fasta<R, T
         let seq = match T::try_from(&seq_buf) {
             Ok(s) => s,
             Err(_) => {
-                return Some(Err(FastaError::InvalidSequence));
+                return Some(Err(FastxError::InvalidSequence("TODO".to_string())));
             }
         };
         Some(Ok(Record {
@@ -111,8 +103,8 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fasta<R, T
     }
 }
 
-impl<R: BufRead + Unpin, A: Codec> Iterator for Fasta<R, Seq<A>> {
-    type Item = Result<Record<Seq<A>>, FastaError>;
+impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Iterator for Fasta<R, T> {
+    type Item = Result<Record<T>, FastxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.parse_record()
@@ -120,7 +112,7 @@ impl<R: BufRead + Unpin, A: Codec> Iterator for Fasta<R, Seq<A>> {
 }
 
 impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Stream for Fasta<R, T> {
-    type Item = Result<Record<T>, FastaError>;
+    type Item = Result<Record<T>, FastxError>;
 
     fn poll_next(
         self: Pin<&mut Self>,
@@ -131,6 +123,8 @@ impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Stream for Fasta<
         Poll::Ready(record)
     }
 }
+
+impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Reader<T> for Fasta<R, T> {}
 
 #[cfg(test)]
 mod tests {

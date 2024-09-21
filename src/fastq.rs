@@ -1,49 +1,15 @@
 use core::marker::{PhantomData, Unpin};
 
-use std::fmt;
 use std::io::BufRead;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-//use std::error;
 
 use futures::stream::Stream;
 
 use bio_seq::prelude::*;
 
 use crate::record::Phred;
-use crate::Record;
-
-#[derive(Debug, PartialEq)]
-pub enum FastqError {
-    InvalidSeparationLine,
-    InvalidId(String),
-    TruncatedRecord,
-    InvalidSequence(String),
-    InvalidQuality,
-    FileError,
-}
-
-impl fmt::Display for FastqError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            FastqError::InvalidSeparationLine => write!(f, "Invalid separation character"),
-            FastqError::InvalidId(id) => write!(f, "Invalid id: {id}"),
-            FastqError::TruncatedRecord => write!(f, "Truncated record"),
-            FastqError::InvalidSequence(seq) => write!(f, "Invalid sequence: {seq}"),
-            FastqError::InvalidQuality => write!(f, "Invalid quailty string"),
-            FastqError::FileError => write!(f, "File error"),
-        }
-    }
-}
-
-/*
-impl error::Error for FastqError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        match self {
-        }
-    }
-}
-    */
+use crate::{FastxError, Reader, Record};
 
 pub struct Fastq<R: BufRead, T = Seq<Dna>>
 where
@@ -71,7 +37,7 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fastq<R, T
         }
     }
 
-    fn parse_record(&mut self) -> Option<Result<Record<T>, FastqError>> {
+    fn parse_record(&mut self) -> Option<Result<Record<T>, FastxError>> {
         let mut quality = Vec::<Phred>::new();
         let reader = Pin::get_mut(self.reader.as_mut());
 
@@ -81,7 +47,7 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fastq<R, T
         self.qual_buf.clear();
 
         if reader.read_until(b'\n', &mut self.id_buf).is_err() {
-            return Some(Err(FastqError::FileError));
+            return Some(Err(FastxError::FileError));
         }
         if self.id_buf.is_empty() {
             // This is the only condition where an empty reader means
@@ -90,45 +56,45 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fastq<R, T
         }
         // The id line must begin with '@'
         if self.id_buf[0] != b'@' {
-            return Some(Err(FastqError::InvalidId(
+            return Some(Err(FastxError::InvalidId(
                 String::from_utf8_lossy(&self.id_buf).into_owned(),
             )));
         }
 
         if reader.read_until(b'\n', &mut self.seq_buf).is_err() {
-            return Some(Err(FastqError::FileError));
+            return Some(Err(FastxError::FileError));
         }
         if self.seq_buf.is_empty() {
-            return Some(Err(FastqError::TruncatedRecord));
+            return Some(Err(FastxError::TruncatedRecord));
         }
 
         if reader.read_until(b'\n', &mut self.sep_buf).is_err() {
-            return Some(Err(FastqError::FileError));
+            return Some(Err(FastxError::FileError));
         }
         if self.sep_buf.is_empty() {
-            return Some(Err(FastqError::TruncatedRecord));
+            return Some(Err(FastxError::TruncatedRecord));
         }
 
         // Detect whether the '+' separation line is valid
         if self.sep_buf.len() != 2 || self.sep_buf[0] != b'+' {
-            return Some(Err(FastqError::InvalidSeparationLine));
+            return Some(Err(FastxError::InvalidSeparationLine));
         }
         if reader.read_until(b'\n', &mut self.qual_buf).is_err() {
-            return Some(Err(FastqError::FileError));
+            return Some(Err(FastxError::FileError));
         }
         if self.qual_buf.is_empty() {
-            return Some(Err(FastqError::TruncatedRecord));
+            return Some(Err(FastxError::TruncatedRecord));
         }
 
         // Parse the contents of the sequence and quality lines
         if self.qual_buf.len() != self.seq_buf.len() {
-            return Some(Err(FastqError::InvalidQuality));
+            return Some(Err(FastxError::InvalidQuality));
         }
 
         let seq = match T::try_from(&self.seq_buf[..self.seq_buf.len() - 1]) {
             Ok(parsed_seq) => parsed_seq,
             Err(_) => {
-                return Some(Err(FastqError::InvalidSequence(
+                return Some(Err(FastxError::InvalidSequence(
                     String::from_utf8_lossy(&self.seq_buf).into_owned(),
                 )))
             }
@@ -148,8 +114,8 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fastq<R, T
     }
 }
 
-impl<R: BufRead + Unpin, A: Codec> Iterator for Fastq<R, Seq<A>> {
-    type Item = Result<Record<Seq<A>>, FastqError>;
+impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Iterator for Fastq<R, T> {
+    type Item = Result<Record<T>, FastxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.parse_record()
@@ -157,7 +123,7 @@ impl<R: BufRead + Unpin, A: Codec> Iterator for Fastq<R, Seq<A>> {
 }
 
 impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Stream for Fastq<R, T> {
-    type Item = Result<Record<T>, FastqError>;
+    type Item = Result<Record<T>, FastxError>;
 
     fn poll_next(
         self: Pin<&mut Self>,
@@ -168,6 +134,8 @@ impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Stream for Fastq<
         Poll::Ready(record)
     }
 }
+
+impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Reader<T> for Fastq<R, T> {}
 
 #[cfg(test)]
 mod tests {

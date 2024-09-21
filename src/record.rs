@@ -1,5 +1,8 @@
 use core::fmt;
 use core::str;
+use futures::Stream;
+
+use crate::FastxError;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Phred(u8);
@@ -50,4 +53,9 @@ impl<'a, T: for<'b> TryFrom<&'b [u8]>> Record<T> {
     pub fn description(self) -> Option<&'a str> {
         unimplemented!()
     }
+}
+
+pub trait Reader<T: for<'a> TryFrom<&'a [u8]>>:
+    Iterator<Item = Result<Record<T>, FastxError>> + Stream<Item = Result<Record<T>, FastxError>>
+{
 }
