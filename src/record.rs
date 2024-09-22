@@ -1,3 +1,5 @@
+#![allow(clippy::must_use_candidate)]
+
 use core::fmt;
 use core::str;
 use futures::Stream;

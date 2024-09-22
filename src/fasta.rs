@@ -82,18 +82,15 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fasta<R, T
                 // new record starts
                 self.field_buf = Some(Vec::from(&self.line_buf[1..end_pos(&self.line_buf)]));
                 break;
-            } else {
-                // treat this line as sequence
-                seq_buf.extend_from_slice(&self.line_buf[..end_pos(&self.line_buf)]);
-                self.line_buf.clear();
             }
+            // treat this line as sequence
+            seq_buf.extend_from_slice(&self.line_buf[..end_pos(&self.line_buf)]);
+            self.line_buf.clear();
         }
 
-        let seq = match T::try_from(&seq_buf) {
-            Ok(s) => s,
-            Err(_) => {
-                return Some(Err(FastxError::InvalidSequence("TODO".to_string())));
-            }
+        let Ok(seq) = T::try_from(&seq_buf) else {
+            // TODO
+            return Some(Err(FastxError::InvalidSequence("TODO".to_string())));
         };
         Some(Ok(Record {
             fields,

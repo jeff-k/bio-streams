@@ -75,6 +75,9 @@
 //! }
 //! ```
 //!
+
+#![warn(clippy::pedantic)]
+
 mod error;
 pub mod fasta;
 pub mod fastq;

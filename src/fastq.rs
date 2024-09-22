@@ -91,13 +91,10 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fastq<R, T
             return Some(Err(FastxError::InvalidQuality));
         }
 
-        let seq = match T::try_from(&self.seq_buf[..self.seq_buf.len() - 1]) {
-            Ok(parsed_seq) => parsed_seq,
-            Err(_) => {
-                return Some(Err(FastxError::InvalidSequence(
-                    String::from_utf8_lossy(&self.seq_buf).into_owned(),
-                )))
-            }
+        let Ok(seq) = T::try_from(&self.seq_buf[..self.seq_buf.len() - 1]) else {
+            return Some(Err(FastxError::InvalidSequence(
+                String::from_utf8_lossy(&self.seq_buf).into_owned(),
+            )));
         };
 
         quality.extend(
