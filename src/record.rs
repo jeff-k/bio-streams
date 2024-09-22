@@ -1,10 +1,9 @@
 #![allow(clippy::must_use_candidate)]
 
+use core::error;
 use core::fmt;
 use core::str;
 use futures::Stream;
-
-use crate::FastxError;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Phred(u8);
@@ -57,7 +56,12 @@ impl<'a, T: for<'b> TryFrom<&'b [u8]>> Record<T> {
     }
 }
 
-pub trait Reader<T: for<'a> TryFrom<&'a [u8]>>:
-    Iterator<Item = Result<Record<T>, FastxError>> + Stream<Item = Result<Record<T>, FastxError>>
+pub trait Reader<T>:
+    Iterator<Item = Result<Record<T>, Self::Error>> + Stream<Item = Result<Record<T>, Self::Error>>
+where
+    T: for<'a> TryFrom<&'a [u8]>,
 {
+    type Error: error::Error;
+
+    fn parse_record(&mut self) -> Option<Result<Record<T>, Self::Error>>;
 }

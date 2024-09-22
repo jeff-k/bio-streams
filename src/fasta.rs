@@ -41,8 +41,33 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fasta<R, T
             p: PhantomData,
         }
     }
+}
 
-    fn parse_record(&mut self) -> Option<Result<Record<T>, FastxError>> {
+impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Iterator for Fasta<R, T> {
+    type Item = Result<Record<T>, FastxError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.parse_record()
+    }
+}
+
+impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Stream for Fasta<R, T> {
+    type Item = Result<Record<T>, FastxError>;
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<Option<<Self as Stream>::Item>> {
+        let record = unsafe { self.get_unchecked_mut().parse_record() };
+
+        Poll::Ready(record)
+    }
+}
+
+impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Reader<T> for Fasta<R, T> {
+    type Error = FastxError;
+
+    fn parse_record(&mut self) -> Option<Result<Record<T>, Self::Error>> {
         let reader = Pin::get_mut(self.reader.as_mut());
 
         let mut seq_buf: Vec<u8> = Vec::new();
@@ -99,29 +124,6 @@ impl<R: BufRead + Into<Box<R>> + Unpin, T: for<'a> TryFrom<&'a [u8]>> Fasta<R, T
         }))
     }
 }
-
-impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Iterator for Fasta<R, T> {
-    type Item = Result<Record<T>, FastxError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.parse_record()
-    }
-}
-
-impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Stream for Fasta<R, T> {
-    type Item = Result<Record<T>, FastxError>;
-
-    fn poll_next(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<Option<<Self as Stream>::Item>> {
-        let record = unsafe { self.get_unchecked_mut().parse_record() };
-
-        Poll::Ready(record)
-    }
-}
-
-impl<R: BufRead + Unpin, T: Unpin + for<'a> TryFrom<&'a [u8]>> Reader<T> for Fasta<R, T> {}
 
 #[cfg(test)]
 mod tests {
