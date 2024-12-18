@@ -1,6 +1,6 @@
 [package]
 name = "bio-streams"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 authors = ["jeff-k <jeff_k@fastmail.com>"]
 description = "Streaming bioinformatics data types"
@@ -10,17 +10,16 @@ keywords = ["bioinformatics", "fasta", "fastq", "genomics"]
 readme = "README.md"
 
 [dependencies]
-futures = "0.3"
-futures-test = "0.3"
 bio-seq = "0.13"
+futures = "0.3"
 
 [dev-dependencies]
 flate2 = "1"
 clap = { version="4", features=["derive"] }
 bio-seq = "0.13"
 
-[[example]]
-name = "fqcheck"
+#[[example]]
+#name = "fqcheck"
 
-[[example]]
-name = "aminokmers"
+#[[example]]
+#name = "aminokmers"

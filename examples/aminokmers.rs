@@ -1,4 +1,4 @@
-use std::fs::File;
+/*use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
 
@@ -48,3 +48,6 @@ fn main() {
         count, K, n, total, empty_counts, 1 << (K * Amino::BITS as usize), K,
     );
 }
+*/
+
+fn main() {}
