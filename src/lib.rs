@@ -77,12 +77,11 @@
 //!
 
 #![warn(clippy::pedantic)]
-
+#![allow(clippy::must_use_candidate)]
 mod error;
-pub mod fasta;
+//pub mod fasta;
 pub mod fastq;
 pub mod record;
 //pub mod sam;
-
-pub use crate::error::FastxError;
-pub use crate::record::{Reader, Record};
+//pub mod gfa;
+//pub mod paf;
