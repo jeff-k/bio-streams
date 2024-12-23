@@ -8,16 +8,16 @@ use std::task::Poll;
 pub use crate::error::ParseError;
 pub use crate::record::{Phred, Record};
 
-pub struct FastqBuffer<'a, R: BufRead, S: TryFrom<&'a [u8]> = Vec<u8>> {
+pub struct FastqReader<'a, R: BufRead, S: TryFrom<&'a [u8]> = Vec<u8>> {
     reader: Pin<Box<R>>,
     buffer: Vec<u8>,
     _p: PhantomData<&'a ()>,
     _s: PhantomData<S>,
 }
 
-impl<R: BufRead + Into<Box<R>> + Unpin, S: for<'a> TryFrom<&'a [u8]>> FastqBuffer<'_, R, S> {
+impl<R: BufRead + Into<Box<R>> + Unpin, S: for<'a> TryFrom<&'a [u8]>> FastqReader<'_, R, S> {
     pub fn new(reader: R) -> Self {
-        FastqBuffer {
+        FastqReader {
             reader: Box::pin(reader),
             buffer: Vec::<u8>::with_capacity(1024),
             _p: PhantomData,
@@ -26,7 +26,7 @@ impl<R: BufRead + Into<Box<R>> + Unpin, S: for<'a> TryFrom<&'a [u8]>> FastqBuffe
     }
 }
 
-impl<'a, R: BufRead + Into<Box<R>> + Unpin, S: TryFrom<&'a [u8]>> FastqBuffer<'a, R, S> {
+impl<'a, R: BufRead + Into<Box<R>> + Unpin, S: TryFrom<&'a [u8]>> FastqReader<'a, R, S> {
     fn parse(&mut self) -> Option<Result<Record<'a, S>, std::io::Error>> {
         self.buffer.clear();
 
@@ -98,7 +98,7 @@ impl<'a, R: BufRead + Into<Box<R>> + Unpin, S: TryFrom<&'a [u8]>> FastqBuffer<'a
     }
 }
 
-impl<'a, R: BufRead + Unpin, S: TryFrom<&'a [u8]>> Iterator for FastqBuffer<'a, R, S> {
+impl<'a, R: BufRead + Unpin, S: TryFrom<&'a [u8]>> Iterator for FastqReader<'a, R, S> {
     type Item = Result<Record<'a, S>, std::io::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -106,7 +106,7 @@ impl<'a, R: BufRead + Unpin, S: TryFrom<&'a [u8]>> Iterator for FastqBuffer<'a, 
     }
 }
 
-impl<'a, R: BufRead + Unpin, S: TryFrom<&'a [u8]>> AsyncIterator for FastqBuffer<'a, R, S> {
+impl<'a, R: BufRead + Unpin, S: TryFrom<&'a [u8]>> AsyncIterator for FastqReader<'a, R, S> {
     type Item = Result<Record<'a, S>, std::io::Error>;
 
     fn poll_next(
@@ -136,7 +136,7 @@ CATCGACTACGGCG
 +
 GGGGGGGGGGGGGG\n";
         let reader = Cursor::new(data as &[u8]);
-        let mut fastq: FastqBuffer<Cursor<&[u8]>> = FastqBuffer::new(reader);
+        let mut fastq: FastqReader<Cursor<&[u8]>> = FastqReader::new(reader);
 
         let record1 = fastq.next().unwrap().unwrap();
         assert_eq!(record1.raw_fields, b"SEQ_ID_1".to_vec());
@@ -164,8 +164,8 @@ CATCGACTACGGCG
 GGGGGGGGGGGGGG\n";
 
         let reader = Cursor::new(data as &[u8]);
-        let mut fastq: Pin<Box<FastqBuffer<Cursor<&[u8]>>>> =
-            Pin::new(Box::new(FastqBuffer::new(reader)));
+        let mut fastq: Pin<Box<FastqReader<Cursor<&[u8]>>>> =
+            Pin::new(Box::new(FastqReader::new(reader)));
 
         let waker = noop_waker();
         let mut cx = Context::from_waker(&waker);
