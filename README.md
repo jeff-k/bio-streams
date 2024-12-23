@@ -5,25 +5,50 @@
 
 # bio-steams
 
-### Types and datastructures for streaming genomics data
+### Async streaming parsers for genomics data
 
-#### This crate is in early development. Contributions are very welcome.
-
-Webassembly examples: [Remove non M. TB reads from streaming fastqs](https://jeff-k.github.io/fqdemo/), [amplicon based SARS-CoV-2 assembly](https://jeff-k.github.io/amplicon-tiling/)</div>
+This is an avant-garde runtime-agnostic API that relies on type inferrence to configure streams of genomic data.
 
 ## Features
 
-Shared `Record` type by `Fastq` and `Fasta` streams:
+### Implementations of parsers for popular formats
+
+-[] fastq
+-[] fasta
+-[] sam/bam
+-[] gfa
+-[] paf
+
+### Zero-copy datastructures
+
+Shared `SeqRecord` type for `Fastq`, `Fasta`, and streams of records that carry sequences:
 
 ```rust
-pub struct Record<T: for<'a> TryFrom<&'a [u8]> = Vec<u8>> {
-    pub fields: Vec<u8>,
-    pub seq: T,
-    pub quality: Option<Vec<Phred>>, // fasta records set quality to `None`
-}
+pub struct SeqRecord<S: for<'a> TryFrom<&'a [u8]> = &'a [u8]> { ... }
 ```
 
-Records can be read into custom types: `pub struct Fastq<R: BufRead, T = Seq<Dna>>`
+Records can be read into custom types like bit-packed sequences or SIMD-backed kmers:
+
+```rust
+use bio_seq::prelude::*;
+
+todo!()
+```
+
+Lazy parsing for record members (CIGAR strings/Phred scores/Sequences)
+
+### Webassembly friendly async
+
+This crate implements nightly std::futures traits.
+
+Examples:
+    * [Remove non M. TB reads from streaming fastqs](https://jeff-k.github.io/fqdemo/), [amplicon based SARS-CoV-2 assembly](https://jeff-k.github.io/amplicon-tiling/)</div>
+
+### Combinators for streams of data
+
+* zipping streams with buffers
+* mapping quality filter to streams
+* create a stream of mapped sequences
 
 ## Examples
 
@@ -92,20 +117,3 @@ To run the `aminokmers` example program with fasta file `proteins.faa`:
 $ cargo build --example fqcheck --release
 $ target/release/examples/aminokmers proteins.faa
 ```
-
-## Roadmap
-
-input streams:
-
-* fastq
-* fasta
-* TODO sam/bam
-* TODO gfa
-
-todo:
-
-* quality score trait, `Phred` alias for `u8`
-* futures::streams for async
-* GAT lending iterator
-* benchmark
-* examples
