@@ -8,10 +8,16 @@ use std::task::Poll;
 pub use crate::error::ParseError;
 pub use crate::record::{Phred, Record};
 
-pub struct FastqReader<'a, R: BufRead, S: TryFrom<&'a [u8]> = Vec<u8>> {
+pub struct FastqReader<'a, R: BufRead, S: TryFrom<&'a [u8]> = &'a [u8]> {
     reader: Pin<Box<R>>,
     buffer: Vec<u8>,
     _p: PhantomData<&'a ()>,
+    _s: PhantomData<S>,
+}
+
+pub struct Fastq<'a, S: TryFrom<&'a [u8]> = &'a [u8]> {
+    buffer: &'a [u8],
+    pos: usize,
     _s: PhantomData<S>,
 }
 
@@ -21,6 +27,16 @@ impl<R: BufRead + Into<Box<R>> + Unpin, S: for<'a> TryFrom<&'a [u8]>> FastqReade
             reader: Box::pin(reader),
             buffer: Vec::<u8>::with_capacity(1024),
             _p: PhantomData,
+            _s: PhantomData,
+        }
+    }
+}
+
+impl<'src, S: for<'a> TryFrom<&'a [u8]>> Fastq<'src, S> {
+    pub fn new(buf: &'src [u8]) -> Self {
+        Fastq {
+            buffer: buf,
+            pos: 0,
             _s: PhantomData,
         }
     }
@@ -95,6 +111,12 @@ impl<'a, R: BufRead + Into<Box<R>> + Unpin, S: TryFrom<&'a [u8]>> FastqReader<'a
                 _p: PhantomData,
             }))
         }
+    }
+}
+
+impl<'src, S: TryFrom<&'src [u8]>> Fastq<'src, S> {
+    fn parse(&mut self) -> Option<Result<Record<'src, S>, std::io::Error>> {
+        todo!()
     }
 }
 
