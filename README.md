@@ -5,13 +5,13 @@
 
 # bio-steams
 
-### Async streaming parsers for genomics data
+Streaming parsers for genomics data
 
 This is an avant-garde runtime-agnostic API that relies on type inferrence to configure streams of genomic data.
 
 ## Features
 
-### Implementations of parsers for popular formats
+### Parsers for popular formats
 
 -[] fastq
 -[] fasta
@@ -34,6 +34,8 @@ use bio_seq::prelude::*;
 
 todo!()
 ```
+
+### Lazy parsing configured through generic types
 
 Lazy parsing for record members (CIGAR strings/Phred scores/Sequences)
 
