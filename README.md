@@ -7,7 +7,7 @@
 
 Streaming parsers for genomics data
 
-This is an avant-garde runtime-agnostic API that relies on type inferrence to configure streams of genomic data.
+This is an avant-garde runtime-agnostic API that relies on type inference to configure streams of genomic data.
 
 ## Features
 
@@ -52,7 +52,17 @@ Examples:
 * mapping quality filter to streams
 * create a stream of mapped sequences
 
-## Examples
+## TODO
+
+* SIMD parallel scanning for record boundaries
+* Branch prediction hints for record boundary checks
+* Checking multiple delimiters in parallel
+* Prefetch hints for sequential access patterns
+* Buffer preallocation based on typical FASTQ record sizes
+* Reusing buffer space by sliding windows rather than clearing
+* SIMD-optimized scanning for record delimiters (@, +, newlines)
+* Memory alignment of the buffer for SIMD operations
+* Custom allocator for the buffer optimized for append/clear pattern## Examples
 
 ### Stream a pair of fastqs and check some conditions on their name fields
 ```rust
