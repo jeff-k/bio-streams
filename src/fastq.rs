@@ -1,6 +1,7 @@
 use futures::Stream as AsyncIterator;
 use std::io;
 use std::io::BufRead;
+use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::Poll;
@@ -44,7 +45,7 @@ fn build_record<'a, S: TryFrom<&'a [u8]>>(
     })
 }
 
-pub struct FastqReader<'a, R: BufRead, S: TryFrom<&'a [u8]> = &'a [u8]> {
+pub struct FastqReader<'a, R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]> = &'a [u8]> {
     reader: Pin<Box<R>>,
     buffer: Vec<u8>,
     _p: PhantomData<&'a ()>,
@@ -57,7 +58,7 @@ pub struct Fastq<'a, S: TryFrom<&'a [u8]> = &'a [u8]> {
     _s: PhantomData<S>,
 }
 
-impl<R: BufRead + Into<Box<R>> + Unpin, S: for<'a> TryFrom<&'a [u8]>> FastqReader<'_, R, S> {
+impl<R: BufRead + Unpin, S: for<'a> TryFrom<&'a [u8]>> FastqReader<'_, R, S> {
     pub fn new(reader: R) -> Self {
         FastqReader {
             reader: Box::pin(reader),
@@ -78,7 +79,7 @@ impl<'src, S: for<'a> TryFrom<&'a [u8]>> Fastq<'src, S> {
     }
 }
 
-impl<'a, R: BufRead + Into<Box<R>> + Unpin, S: TryFrom<&'a [u8]>> FastqReader<'a, R, S> {
+impl<'a, R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> FastqReader<'a, R, S> {
     fn parse(&mut self) -> Option<Result<Record<'a, S>, std::io::Error>> {
         self.buffer.clear();
 
@@ -151,7 +152,7 @@ impl<'src, S: TryFrom<&'src [u8]>> Fastq<'src, S> {
     }
 }
 
-impl<'a, R: BufRead + Unpin, S: TryFrom<&'a [u8]>> Iterator for FastqReader<'a, R, S> {
+impl<'a, R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> Iterator for FastqReader<'a, R, S> {
     type Item = Result<Record<'a, S>, std::io::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -159,7 +160,7 @@ impl<'a, R: BufRead + Unpin, S: TryFrom<&'a [u8]>> Iterator for FastqReader<'a, 
     }
 }
 
-impl<'a, R: BufRead + Unpin, S: TryFrom<&'a [u8]>> AsyncIterator for FastqReader<'a, R, S> {
+impl<'a, R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> AsyncIterator for FastqReader<'a, R, S> {
     type Item = Result<Record<'a, S>, std::io::Error>;
 
     fn poll_next(
@@ -193,12 +194,13 @@ impl<'a, S: TryFrom<&'a [u8]>> AsyncIterator for Fastq<'a, S> {
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
     use futures::task::noop_waker;
+    use futures::Stream;
     use std::io::Cursor;
+    use std::iter::Iterator;
     use std::task::{Context, Poll};
 
     #[test]
@@ -212,12 +214,15 @@ CATCGACTACGGCG
 +
 GGGGGGGGGGGGGG\n";
         let reader = Cursor::new(data as &[u8]);
-        let mut fastq: FastqReader<Cursor<&[u8]>> = FastqReader::new(reader);
+        //let mut fastq: FastqReader<Cursor<&[u8]>> = FastqReader::new(reader);
 
-        let record1 = fastq.next().unwrap().unwrap();
+        let mut fastq = FastqReader::new(reader);
+
+        let record1: Record<Vec<u8>> = fastq.next().unwrap().unwrap();
         assert_eq!(record1.raw_fields, b"SEQ_ID_1".to_vec());
         assert_eq!(record1.raw_seq, b"ACTCGATCGCGACGAA");
         assert_eq!(record1.raw_quality.unwrap(), b"AFFFFFFFFFFFFEBA");
+        /*
         let record2 = fastq
             .next()
             .expect("Expected a record")
@@ -226,45 +231,46 @@ GGGGGGGGGGGGGG\n";
         assert_eq!(record2.raw_seq, b"CATCGACTACGGCG");
 
         assert!(fastq.next().is_none(), "Expected no more records");
+        */
     }
+    /*
+        #[test]
+        fn test_fastq_poll_next() {
+            let data = b"@SEQ_ID_1
+    ACTCGATCGCGACG
+    +
+    FFFFFFFFFFFFFF
+    @SEQ_ID_2
+    CATCGACTACGGCG
+    +
+    GGGGGGGGGGGGGG\n";
 
-    #[test]
-    fn test_fastq_poll_next() {
-        let data = b"@SEQ_ID_1
-ACTCGATCGCGACG
-+
-FFFFFFFFFFFFFF
-@SEQ_ID_2
-CATCGACTACGGCG
-+
-GGGGGGGGGGGGGG\n";
+            let reader = Cursor::new(data as &[u8]);
 
-        let reader = Cursor::new(data as &[u8]);
-        let mut fastq: Pin<Box<FastqReader<Cursor<&[u8]>>>> =
-            Pin::new(Box::new(FastqReader::new(reader)));
+            let mut fastq = FastqReader::new(reader);
 
-        let waker = noop_waker();
-        let mut cx = Context::from_waker(&waker);
+            let waker = noop_waker();
+            let mut cx = Context::from_waker(&waker);
 
-        // manual polling using poll_next
-        match fastq.as_mut().poll_next(&mut cx) {
-            Poll::Ready(Some(Ok(record))) => {
-                assert_eq!(record.raw_fields, b"SEQ_ID_1");
-                assert_eq!(record.raw_seq, b"ACTCGATCGCGACG");
-                assert_eq!(record.raw_quality.unwrap(), b"FFFFFFFFFFFFFF");
+            // manual polling using poll_next
+            match fastq.as_mut().poll_next(&mut cx) {
+                Poll::Ready(Some(Ok(record))) => {
+                    assert_eq!(record.raw_fields, b"SEQ_ID_1");
+                    assert_eq!(record.raw_seq, b"ACTCGATCGCGACG");
+                    assert_eq!(record.raw_quality.unwrap(), b"FFFFFFFFFFFFFF");
+                }
+                _ => panic!("Unexpected result"),
             }
-            _ => panic!("Unexpected result"),
-        }
 
-        match fastq.as_mut().poll_next(&mut cx) {
-            Poll::Ready(Some(Ok(record))) => {
-                assert_eq!(record.raw_fields, b"SEQ_ID_2");
-                assert_eq!(record.raw_seq, b"CATCGACTACGGCG");
+            match fastq.as_mut().poll_next(&mut cx) {
+                Poll::Ready(Some(Ok(record))) => {
+                    assert_eq!(record.raw_fields, b"SEQ_ID_2");
+                    assert_eq!(record.raw_seq, b"CATCGACTACGGCG");
+                }
+                _ => panic!("Unexpected result"),
             }
-            _ => panic!("Unexpected result"),
-        }
 
-        //assert_eq!(fastq.as_mut().poll_next(&mut cx), Poll::Ready(None));
-    }
+            //assert_eq!(fastq.as_mut().poll_next(&mut cx), Poll::Ready(None));
+        }
+        */
 }
-*/
