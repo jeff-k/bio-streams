@@ -1,11 +1,9 @@
 <div class="title-block" style="text-align: center;" align="center">
 
 # bio-steams
-
-Streaming parsers for genomics data
-
 [![Docs.rs](https://docs.rs/bio-streams/badge.svg)](https://docs.rs/bio-streams)
 [![CI status](https://github.com/jeff-k/bio-streams/actions/workflows/rust.yml/badge.svg)](https://github.com/jeff-k/bio-streams/actions/workflows/rust.yml)
+### Streaming parsers for genomics data
 
 </div>
 
@@ -15,11 +13,11 @@ This is an avant-garde runtime-agnostic API that relies on type inference to con
 
 ### Parsers for popular formats
 
-- [] fastq
-- [] fasta
-- [] sam/bam
-- [] gfa
-- [] paf
+- [ ] fastq
+- [ ] fasta
+- [ ] sam/bam
+- [ ] gfa
+- [ ] paf
 
 ### Zero-copy datastructures
 
@@ -43,10 +41,7 @@ Lazy parsing for record members (CIGAR strings/Phred scores/Sequences)
 
 ### Webassembly friendly async
 
-This crate implements nightly std::futures traits.
-
-Examples:
-    * [Remove non M. TB reads from streaming fastqs](https://jeff-k.github.io/fqdemo/), [amplicon based SARS-CoV-2 assembly](https://jeff-k.github.io/amplicon-tiling/)</div>
+This crate implements nightly `std::futures` traits.
 
 ### Combinators for streams of data
 
@@ -54,17 +49,9 @@ Examples:
 * mapping quality filter to streams
 * create a stream of mapped sequences
 
-## TODO
+## Examples
 
-* SIMD parallel scanning for record boundaries
-* Branch prediction hints for record boundary checks
-* Checking multiple delimiters in parallel
-* Prefetch hints for sequential access patterns
-* Buffer preallocation based on typical FASTQ record sizes
-* Reusing buffer space by sliding windows rather than clearing
-* SIMD-optimized scanning for record delimiters (@, +, newlines)
-* Memory alignment of the buffer for SIMD operations
-* Custom allocator for the buffer optimized for append/clear pattern## Examples
+* [Remove non M. TB reads from streaming fastqs](https://jeff-k.github.io/fqdemo/), [amplicon based SARS-CoV-2 assembly](https://jeff-k.github.io/amplicon-tiling/)</div>
 
 ### Stream a pair of fastqs and check some conditions on their name fields
 ```rust
@@ -131,3 +118,16 @@ To run the `aminokmers` example program with fasta file `proteins.faa`:
 $ cargo build --example fqcheck --release
 $ target/release/examples/aminokmers proteins.faa
 ```
+
+## TODO
+
+* SIMD parallel scanning for record boundaries
+* Branch prediction hints for record boundary checks
+* Checking multiple delimiters in parallel
+* Prefetch hints for sequential access patterns
+* Buffer preallocation based on typical FASTQ record sizes
+* Reusing buffer space by sliding windows rather than clearing
+* SIMD-optimized scanning for record delimiters (@, +, newlines)
+* Memory alignment of the buffer for SIMD operations
+* Custom allocator for the buffer optimized for append/clear pattern## Examples
+
