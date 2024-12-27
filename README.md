@@ -1,11 +1,13 @@
-[![Docs.rs](https://docs.rs/bio-streams/badge.svg)](https://docs.rs/bio-streams)
-[![CI status](https://github.com/jeff-k/bio-streams/actions/workflows/rust.yml/badge.svg)](https://github.com/jeff-k/bio-streams/actions/workflows/rust.yml)
-
 <div class="title-block" style="text-align: center;" align="center">
 
 # bio-steams
 
 Streaming parsers for genomics data
+
+[![Docs.rs](https://docs.rs/bio-streams/badge.svg)](https://docs.rs/bio-streams)
+[![CI status](https://github.com/jeff-k/bio-streams/actions/workflows/rust.yml/badge.svg)](https://github.com/jeff-k/bio-streams/actions/workflows/rust.yml)
+
+</div>
 
 This is an avant-garde runtime-agnostic API that relies on type inference to configure streams of genomic data.
 
@@ -13,11 +15,11 @@ This is an avant-garde runtime-agnostic API that relies on type inference to con
 
 ### Parsers for popular formats
 
--[] fastq
--[] fasta
--[] sam/bam
--[] gfa
--[] paf
+- [] fastq
+- [] fasta
+- [] sam/bam
+- [] gfa
+- [] paf
 
 ### Zero-copy datastructures
 
