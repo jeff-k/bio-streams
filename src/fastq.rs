@@ -60,6 +60,28 @@ impl<'src, S: TryFrom<&'src [u8]>> Fastq<'src, S> {
             _s: PhantomData,
         }
     }
+    fn parse(&mut self) -> Option<Result<Record<'src, S>, std::io::Error>> {
+        if self.pos >= self.buffer.len() {
+            return None;
+        }
+
+        let mut lines: [&[u8]; 4] = [&[]; 4];
+
+        for crs_i in &mut lines {
+            if let Some(n) = self.buffer[self.pos..].iter().position(|&b| b == b'\n') {
+                *crs_i = &self.buffer[self.pos..self.pos + n];
+                self.pos += n + 1;
+            } else {
+                // truncated records
+                return Some(Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "Truncated FASTQ record",
+                )));
+            }
+        }
+
+        Some(build_record(&lines))
+    }
 }
 
 /*
@@ -126,31 +148,6 @@ impl<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> FastqReader<R, S> {
     }
 }
 */
-
-impl<'src, S: TryFrom<&'src [u8]>> Fastq<'src, S> {
-    fn parse(&mut self) -> Option<Result<Record<'src, S>, std::io::Error>> {
-        if self.pos >= self.buffer.len() {
-            return None;
-        }
-
-        let mut lines: [&[u8]; 4] = [&[]; 4];
-
-        for crs_i in &mut lines {
-            if let Some(n) = self.buffer[self.pos..].iter().position(|&b| b == b'\n') {
-                *crs_i = &self.buffer[self.pos..self.pos + n];
-                self.pos += n + 1;
-            } else {
-                // truncated records
-                return Some(Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof,
-                    "Truncated FASTQ record",
-                )));
-            }
-        }
-
-        Some(build_record(&lines))
-    }
-}
 
 /*
 impl<'a, R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> Iterator for &'a mut FastqReader<R, S> {

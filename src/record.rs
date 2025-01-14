@@ -62,7 +62,7 @@ impl<'a, S: TryFrom<&'a [u8], Error = ParseError>> Record<'a, S> {
 
     /// # Errors
     /// Parsing phred qualities may be fallible
-    pub fn quality(&self) -> Result<&Vec<Phred>, ParseError> {
+    pub fn quality(&self) -> Result<&[Phred], ParseError> {
         match self.raw_quality {
             None => Err(ParseError::InvalidQuality),
             Some(_) => unimplemented!(),
