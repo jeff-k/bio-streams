@@ -39,40 +39,18 @@ fn build_record<'a, S: TryFrom<&'a [u8]>>(
     }
 
     Ok(Record {
-        raw_fields: lines[0],
+        raw_fields: &lines[0][1..],
         raw_seq: lines[1],
         raw_quality: Some(lines[3]),
         _p: PhantomData,
     })
 }
 
-/*
-pub struct FastqReader<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]> = Vec<u8>> {
-    reader: Pin<Box<R>>,
-    buffer: Vec<u8>,
-    //    _p: PhantomData<&'a ()>,
-    _s: PhantomData<S>,
-}
-*/
-
 pub struct Fastq<'a, S: TryFrom<&'a [u8]> = Vec<u8>> {
     buffer: &'a [u8],
     pos: usize,
     _s: PhantomData<S>,
 }
-
-/*
-impl<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> FastqReader<R, S> {
-    pub fn new(reader: R) -> Self {
-        FastqReader {
-            reader: Box::pin(reader),
-            buffer: Vec::<u8>::with_capacity(1024),
-            //      _p: PhantomData,
-            _s: PhantomData,
-        }
-    }
-}
-*/
 
 impl<'src, S: TryFrom<&'src [u8]>> Fastq<'src, S> {
     pub fn new(buf: &'src [u8]) -> Self {
@@ -85,7 +63,22 @@ impl<'src, S: TryFrom<&'src [u8]>> Fastq<'src, S> {
 }
 
 /*
+pub struct FastqReader<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]> = Vec<u8>> {
+    reader: Pin<Box<R>>,
+    buffer: Vec<u8>,
+    //    _p: PhantomData<&'a ()>,
+    _s: PhantomData<S>,
+}
+
 impl<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> FastqReader<R, S> {
+    pub fn new(reader: R) -> Self {
+        FastqReader {
+            reader: Box::pin(reader),
+            buffer: Vec::<u8>::with_capacity(1024),
+            //      _p: PhantomData,
+            _s: PhantomData,
+        }
+    }
     fn parse<'buf>(&'buf mut self) -> Option<Result<Record<'buf, S>, std::io::Error>> {
         self.buffer.clear();
 
@@ -210,6 +203,7 @@ mod tests {
     //    use futures::Stream;
     use std::io::Cursor;
     use std::iter::Iterator;
+    use std::task::Context;
 
     const FQ1: &'static [u8] = b"@SEQ_ID_1
 ACTCGATCGCGACGAA
@@ -230,7 +224,7 @@ GGGGGGGGGGGGGG\n";
         assert_eq!(record1.raw_fields, b"SEQ_ID_1");
         assert_eq!(record1.raw_seq, b"ACTCGATCGCGACGAA");
         assert_eq!(record1.raw_quality.unwrap(), b"AFFFFFFFFFFFFEBA");
-        /*
+
         let record2 = fastq
             .next()
             .expect("Expected a record")
@@ -239,46 +233,36 @@ GGGGGGGGGGGGGG\n";
         assert_eq!(record2.raw_seq, b"CATCGACTACGGCG");
 
         assert!(fastq.next().is_none(), "Expected no more records");
-        */
     }
     /*
-        #[test]
-        fn test_fastq_poll_next() {
-            let data = b"@SEQ_ID_1
-    ACTCGATCGCGACG
-    +
-    FFFFFFFFFFFFFF
-    @SEQ_ID_2
-    CATCGACTACGGCG
-    +
-    GGGGGGGGGGGGGG\n";
+    #[test]
+    fn test_fastq_poll_next() {
+        let reader = Cursor::new(FQ1);
 
-            let reader = Cursor::new(data as &[u8]);
+        let mut fastq = FastqReader::new(reader);
 
-            let mut fastq = FastqReader::new(reader);
+        let waker = noop_waker();
+        let mut cx = Context::from_waker(&waker);
 
-            let waker = noop_waker();
-            let mut cx = Context::from_waker(&waker);
-
-            // manual polling using poll_next
-            match fastq.as_mut().poll_next(&mut cx) {
-                Poll::Ready(Some(Ok(record))) => {
-                    assert_eq!(record.raw_fields, b"SEQ_ID_1");
-                    assert_eq!(record.raw_seq, b"ACTCGATCGCGACG");
-                    assert_eq!(record.raw_quality.unwrap(), b"FFFFFFFFFFFFFF");
-                }
-                _ => panic!("Unexpected result"),
+        // manual polling using poll_next
+        match fastq.as_mut().poll_next(&mut cx) {
+            Poll::Ready(Some(Ok(record))) => {
+                assert_eq!(record.raw_fields, b"SEQ_ID_1");
+                assert_eq!(record.raw_seq, b"ACTCGATCGCGACG");
+                assert_eq!(record.raw_quality.unwrap(), b"FFFFFFFFFFFFFF");
             }
-
-            match fastq.as_mut().poll_next(&mut cx) {
-                Poll::Ready(Some(Ok(record))) => {
-                    assert_eq!(record.raw_fields, b"SEQ_ID_2");
-                    assert_eq!(record.raw_seq, b"CATCGACTACGGCG");
-                }
-                _ => panic!("Unexpected result"),
-            }
-
-            //assert_eq!(fastq.as_mut().poll_next(&mut cx), Poll::Ready(None));
+            _ => panic!("Unexpected result"),
         }
-        */
+
+        match fastq.as_mut().poll_next(&mut cx) {
+            Poll::Ready(Some(Ok(record))) => {
+                assert_eq!(record.raw_fields, b"SEQ_ID_2");
+                assert_eq!(record.raw_seq, b"CATCGACTACGGCG");
+            }
+            _ => panic!("Unexpected result"),
+        }
+
+        //assert_eq!(fastq.as_mut().poll_next(&mut cx), Poll::Ready(None));
+    }
+    */
 }
