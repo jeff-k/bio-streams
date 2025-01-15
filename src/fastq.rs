@@ -9,7 +9,7 @@ use std::task::Poll;
 pub use crate::error::ParseError;
 pub use crate::record::{Phred, Record};
 
-fn build_record<'a, S: TryFrom<&'a [u8]>>(
+fn build_record_borrowed<'a, S: TryFrom<&'a [u8]>>(
     lines: &[&'a [u8]; 4],
 ) -> Result<Record<&'a [u8], S>, io::Error> {
     // test for valid header start
@@ -42,6 +42,43 @@ fn build_record<'a, S: TryFrom<&'a [u8]>>(
         raw_fields: &lines[0][1..],
         raw_seq: lines[1],
         raw_quality: Some(lines[3]),
+        _p: PhantomData,
+    })
+}
+
+fn build_record_owned<S: TryFrom<Vec<u8>>>(
+    lines: &[&[u8]; 4],
+) -> Result<Record<Vec<u8>, S>, io::Error> {
+    // test for valid header start
+
+    if lines[0][0] != b'@' {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Invalid FASTQ header",
+        ));
+    }
+
+    // test for valid separator line
+    let sep_pos = lines[2][0];
+    if !sep_pos == b'+' {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Invalid FASTQ separator",
+        ));
+    }
+
+    // test that quality and sequence strings are equal length
+    if lines[1].len() != lines[3].len() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "FASTQ quality and sequence lines differ",
+        ));
+    }
+
+    Ok(Record {
+        raw_fields: lines[0][1..].to_vec(),
+        raw_seq: lines[1].to_vec(),
+        raw_quality: Some(lines[3].to_vec()),
         _p: PhantomData,
     })
 }
@@ -80,18 +117,17 @@ impl<'src, S: TryFrom<&'src [u8]>> Fastq<'src, S> {
             }
         }
 
-        Some(build_record(&lines))
+        Some(build_record_borrowed(&lines))
     }
 }
 
-pub struct FastqReader<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]> = Vec<u8>> {
+pub struct FastqReader<R: BufRead + Unpin, S: TryFrom<Vec<u8>> = Vec<u8>> {
     reader: Pin<Box<R>>,
     buffer: Vec<u8>,
     _s: PhantomData<S>,
 }
 
-/*
-impl<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> FastqReader<R, S> {
+impl<R: BufRead + Unpin, S: TryFrom<Vec<u8>>> FastqReader<R, S> {
     pub fn new(reader: R) -> Self {
         FastqReader {
             reader: Box::pin(reader),
@@ -100,7 +136,7 @@ impl<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> FastqReader<R, S> {
         }
     }
 
-    fn parse(&mut self) -> Option<Result<Record<'_, S>, std::io::Error>> {
+    fn parse(&mut self) -> Option<Result<Record<Vec<u8>, S>, std::io::Error>> {
         self.buffer.clear();
 
         // total bytes read
@@ -137,26 +173,26 @@ impl<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> FastqReader<R, S> {
         let buf = unsafe { std::slice::from_raw_parts(self.buffer.as_ptr(), self.buffer.len()) };
 
         let lines: [&[u8]; 4] = [
-            &buf[0..crs[0]],
-            &buf[crs[0] + 1..crs[1]],
-            &buf[crs[1] + 1..crs[2]],
-            &buf[crs[2] + 1..crs[3]],
+            &buf[0..crs[0] - 1],
+            &buf[crs[0]..crs[1] - 1],
+            &buf[crs[1]..crs[2] - 1],
+            &buf[crs[2]..crs[3] - 1],
         ];
 
-        Some(build_record(&lines))
+        Some(build_record_owned(&lines))
     }
 }
 
-impl<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> Iterator for &mut FastqReader<R, S> {
-    type Item<'a> = Result<Record<'a, S>, std::io::Error>;
+impl<R: BufRead + Unpin, S: TryFrom<Vec<u8>>> Iterator for &mut FastqReader<R, S> {
+    type Item = Result<Record<Vec<u8>, S>, std::io::Error>;
 
-    fn next(&mut self) -> Option<Self::Item<'a>> {
+    fn next(&mut self) -> Option<Self::Item> {
         self.parse()
     }
 }
 
-impl<'a, R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> AsyncIterator for FastqReader<R, S> {
-    type Item = Result<Record<'a, S>, std::io::Error>;
+impl<R: BufRead + Unpin, S: TryFrom<Vec<u8>>> AsyncIterator for FastqReader<R, S> {
+    type Item = Result<Record<Vec<u8>, S>, std::io::Error>;
 
     fn poll_next(
         self: Pin<&mut Self>,
@@ -167,7 +203,7 @@ impl<'a, R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> AsyncIterator for Fas
         Poll::Ready(record)
     }
 }
-*/
+
 impl<'a, S: TryFrom<&'a [u8]>> Iterator for Fastq<'a, S> {
     type Item = Result<Record<&'a [u8], S>, std::io::Error>;
 
@@ -209,8 +245,6 @@ GGGGGGGGGGGGGG\n";
 
     #[test]
     fn test_fastq_iterator() {
-        //        let reader = Cursor::new(FQ1);
-
         let mut fastq: Fastq<&[u8]> = Fastq::new(FQ1);
 
         let record1: Record<&[u8]> = fastq.next().unwrap().unwrap();
@@ -227,12 +261,12 @@ GGGGGGGGGGGGGG\n";
 
         assert!(fastq.next().is_none(), "Expected no more records");
     }
-    /*
+
     #[test]
     fn test_fastq_poll_next() {
         let reader = Cursor::new(FQ1);
 
-        let mut fastq = FastqReader::new(reader);
+        let mut fastq = Pin::new(Box::new(FastqReader::<Cursor<&[u8]>>::new(reader)));
 
         let waker = noop_waker();
         let mut cx = Context::from_waker(&waker);
@@ -241,8 +275,8 @@ GGGGGGGGGGGGGG\n";
         match fastq.as_mut().poll_next(&mut cx) {
             Poll::Ready(Some(Ok(record))) => {
                 assert_eq!(record.raw_fields, b"SEQ_ID_1");
-                assert_eq!(record.raw_seq, b"ACTCGATCGCGACG");
-                assert_eq!(record.raw_quality.unwrap(), b"FFFFFFFFFFFFFF");
+                assert_eq!(record.raw_seq, b"ACTCGATCGCGACGAA");
+                assert_eq!(record.raw_quality.unwrap(), b"AFFFFFFFFFFFFEBA");
             }
             _ => panic!("Unexpected result"),
         }
@@ -257,5 +291,4 @@ GGGGGGGGGGGGGG\n";
 
         //assert_eq!(fastq.as_mut().poll_next(&mut cx), Poll::Ready(None));
     }
-    */
 }
