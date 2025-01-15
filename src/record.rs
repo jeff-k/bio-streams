@@ -41,15 +41,26 @@ impl From<Phred> for f64 {
     }
 }
 
-#[derive(PartialEq, Debug)]
-pub struct Record<'a, S: TryFrom<&'a [u8]> = &'a [u8]> {
-    pub(crate) raw_fields: &'a [u8],
-    pub(crate) raw_seq: &'a [u8],
-    pub(crate) raw_quality: Option<&'a [u8]>,
+pub trait RecordData {
+    type Buf: AsRef<[u8]>;
+}
+
+impl RecordData for &[u8] {
+    type Buf = Self;
+}
+
+impl RecordData for Vec<u8> {
+    type Buf = Self;
+}
+
+pub struct Record<B: RecordData, S: TryFrom<B::Buf>> {
+    pub(crate) raw_fields: B::Buf,
+    pub(crate) raw_seq: B::Buf,
+    pub(crate) raw_quality: Option<B::Buf>,
     pub(crate) _p: PhantomData<S>,
 }
 
-impl<'a, S: TryFrom<&'a [u8], Error = ParseError>> Record<'a, S> {
+impl<'a, S: TryFrom<&'a [u8], Error = ParseError>> Record<&'a [u8], S> {
     pub fn fields(&self) -> &'a [u8] {
         self.raw_fields
     }

@@ -11,7 +11,7 @@ pub use crate::record::{Phred, Record};
 
 fn build_record<'a, S: TryFrom<&'a [u8]>>(
     lines: &[&'a [u8]; 4],
-) -> Result<Record<'a, S>, io::Error> {
+) -> Result<Record<&'a [u8], S>, io::Error> {
     // test for valid header start
 
     if lines[0][0] != b'@' {
@@ -60,7 +60,7 @@ impl<'src, S: TryFrom<&'src [u8]>> Fastq<'src, S> {
             _s: PhantomData,
         }
     }
-    fn parse(&mut self) -> Option<Result<Record<'src, S>, std::io::Error>> {
+    fn parse(&mut self) -> Option<Result<Record<&'src [u8], S>, std::io::Error>> {
         if self.pos >= self.buffer.len() {
             return None;
         }
@@ -84,24 +84,23 @@ impl<'src, S: TryFrom<&'src [u8]>> Fastq<'src, S> {
     }
 }
 
-/*
 pub struct FastqReader<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]> = Vec<u8>> {
     reader: Pin<Box<R>>,
     buffer: Vec<u8>,
-    //    _p: PhantomData<&'a ()>,
     _s: PhantomData<S>,
 }
 
+/*
 impl<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> FastqReader<R, S> {
     pub fn new(reader: R) -> Self {
         FastqReader {
             reader: Box::pin(reader),
             buffer: Vec::<u8>::with_capacity(1024),
-            //      _p: PhantomData,
             _s: PhantomData,
         }
     }
-    fn parse<'buf>(&'buf mut self) -> Option<Result<Record<'buf, S>, std::io::Error>> {
+
+    fn parse(&mut self) -> Option<Result<Record<'_, S>, std::io::Error>> {
         self.buffer.clear();
 
         // total bytes read
@@ -147,13 +146,11 @@ impl<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> FastqReader<R, S> {
         Some(build_record(&lines))
     }
 }
-*/
 
-/*
-impl<'a, R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> Iterator for &'a mut FastqReader<R, S> {
-    type Item = Result<Record<'a, S>, std::io::Error>;
+impl<R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> Iterator for &mut FastqReader<R, S> {
+    type Item<'a> = Result<Record<'a, S>, std::io::Error>;
 
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<Self::Item<'a>> {
         self.parse()
     }
 }
@@ -171,9 +168,8 @@ impl<'a, R: BufRead + Unpin, S: for<'b> TryFrom<&'b [u8]>> AsyncIterator for Fas
     }
 }
 */
-
 impl<'a, S: TryFrom<&'a [u8]>> Iterator for Fastq<'a, S> {
-    type Item = Result<Record<'a, S>, std::io::Error>;
+    type Item = Result<Record<&'a [u8], S>, std::io::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.parse()
@@ -181,7 +177,7 @@ impl<'a, S: TryFrom<&'a [u8]>> Iterator for Fastq<'a, S> {
 }
 
 impl<'a, S: for<'b> TryFrom<&'b [u8]>> AsyncIterator for Fastq<'a, S> {
-    type Item = Result<Record<'a, S>, std::io::Error>;
+    type Item = Result<Record<&'a [u8], S>, std::io::Error>;
 
     fn poll_next(
         self: Pin<&mut Self>,
@@ -217,7 +213,7 @@ GGGGGGGGGGGGGG\n";
 
         let mut fastq: Fastq<&[u8]> = Fastq::new(FQ1);
 
-        let record1: Record = fastq.next().unwrap().unwrap();
+        let record1: Record<&[u8], &[u8]> = fastq.next().unwrap().unwrap();
         assert_eq!(record1.raw_fields, b"SEQ_ID_1");
         assert_eq!(record1.raw_seq, b"ACTCGATCGCGACGAA");
         assert_eq!(record1.raw_quality.unwrap(), b"AFFFFFFFFFFFFEBA");
