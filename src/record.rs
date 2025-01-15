@@ -53,7 +53,7 @@ impl RecordData for Vec<u8> {
     type Buf = Self;
 }
 
-pub struct Record<B: RecordData, S: TryFrom<B::Buf>> {
+pub struct Record<B: RecordData, S: TryFrom<B::Buf> = B> {
     pub(crate) raw_fields: B::Buf,
     pub(crate) raw_seq: B::Buf,
     pub(crate) raw_quality: Option<B::Buf>,

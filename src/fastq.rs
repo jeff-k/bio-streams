@@ -213,7 +213,7 @@ GGGGGGGGGGGGGG\n";
 
         let mut fastq: Fastq<&[u8]> = Fastq::new(FQ1);
 
-        let record1: Record<&[u8], &[u8]> = fastq.next().unwrap().unwrap();
+        let record1: Record<&[u8]> = fastq.next().unwrap().unwrap();
         assert_eq!(record1.raw_fields, b"SEQ_ID_1");
         assert_eq!(record1.raw_seq, b"ACTCGATCGCGACGAA");
         assert_eq!(record1.raw_quality.unwrap(), b"AFFFFFFFFFFFFEBA");
