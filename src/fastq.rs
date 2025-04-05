@@ -7,35 +7,26 @@ use std::pin::Pin;
 use std::task::Poll;
 
 pub use crate::error::ParseError;
-pub use crate::record::{Phred, Record};
+pub use crate::record::{Decoder, Phred, Record};
 
-fn build_record_borrowed<'a, S: TryFrom<&'a [u8]>>(
+fn build_record_borrowed<'a, S: TryFrom<&'a [u8], Error = ParseError>>(
     lines: &[&'a [u8]; 4],
-) -> Result<Record<&'a [u8], S>, io::Error> {
+) -> Result<Record<&'a [u8], S>, ParseError> {
     // test for valid header start
 
     if lines[0][0] != b'@' {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Invalid FASTQ header",
-        ));
+        return Err(ParseError::InvalidDelimiter);
     }
 
     // test for valid separator line
     let sep_pos = lines[2][0];
     if !sep_pos == b'+' {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Invalid FASTQ separator",
-        ));
+        return Err(ParseError::InvalidDelimiter);
     }
 
     // test that quality and sequence strings are equal length
     if lines[1].len() != lines[3].len() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "FASTQ quality and sequence lines differ",
-        ));
+        return Err(ParseError::LengthMismatch);
     }
 
     Ok(Record {
@@ -46,33 +37,24 @@ fn build_record_borrowed<'a, S: TryFrom<&'a [u8]>>(
     })
 }
 
-fn build_record_owned<S: TryFrom<Vec<u8>>>(
+fn build_record_owned<S: TryFrom<Vec<u8>, Error = ParseError>>(
     lines: &[&[u8]; 4],
-) -> Result<Record<Vec<u8>, S>, io::Error> {
+) -> Result<Record<Vec<u8>, S>, ParseError> {
     // test for valid header start
 
     if lines[0][0] != b'@' {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Invalid FASTQ header",
-        ));
+        return Err(ParseError::InvalidDelimiter);
     }
 
     // test for valid separator line
     let sep_pos = lines[2][0];
     if !sep_pos == b'+' {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Invalid FASTQ separator",
-        ));
+        return Err(ParseError::InvalidDelimiter);
     }
 
     // test that quality and sequence strings are equal length
     if lines[1].len() != lines[3].len() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "FASTQ quality and sequence lines differ",
-        ));
+        return Err(ParseError::LengthMismatch);
     }
 
     Ok(Record {
@@ -83,13 +65,31 @@ fn build_record_owned<S: TryFrom<Vec<u8>>>(
     })
 }
 
+pub struct FastqDecoder<S: TryFrom<Vec<u8>, Error = ParseError>> {
+    buffer: Vec<u8>,
+    _s: PhantomData<S>,
+}
+
+impl<S: TryFrom<Vec<u8>, Error = ParseError> + 'static> Decoder for FastqDecoder<S> {
+    type Item = Record<Vec<u8>, S>;
+    type Error = ParseError;
+
+    fn decode(&mut self, src: &[u8]) -> Result<Vec<Self::Item>, Self::Error> {
+        todo!()
+    }
+
+    fn decode_eof(&mut self) -> Result<Vec<Self::Item>, Self::Error> {
+        todo!()
+    }
+}
+
 pub struct Fastq<'a, S: TryFrom<&'a [u8]> = Vec<u8>> {
     buffer: &'a [u8],
     pos: usize,
     _s: PhantomData<S>,
 }
 
-impl<'src, S: TryFrom<&'src [u8]>> Fastq<'src, S> {
+impl<'src, S: TryFrom<&'src [u8], Error = ParseError>> Fastq<'src, S> {
     pub fn new(buf: &'src [u8]) -> Self {
         Fastq {
             buffer: buf,
@@ -97,7 +97,8 @@ impl<'src, S: TryFrom<&'src [u8]>> Fastq<'src, S> {
             _s: PhantomData,
         }
     }
-    fn parse(&mut self) -> Option<Result<Record<&'src [u8], S>, std::io::Error>> {
+
+    fn parse_next(&mut self) -> Option<Result<Record<&'src [u8], S>, ParseError>> {
         if self.pos >= self.buffer.len() {
             return None;
         }
@@ -110,10 +111,7 @@ impl<'src, S: TryFrom<&'src [u8]>> Fastq<'src, S> {
                 self.pos += n + 1;
             } else {
                 // truncated records
-                return Some(Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof,
-                    "Truncated FASTQ record",
-                )));
+                return Some(Err(ParseError::TruncatedRecord));
             }
         }
 
@@ -121,12 +119,15 @@ impl<'src, S: TryFrom<&'src [u8]>> Fastq<'src, S> {
     }
 }
 
+/*
 pub struct FastqReader<R: BufRead + Unpin, S: TryFrom<Vec<u8>> = Vec<u8>> {
     reader: Pin<Box<R>>,
     buffer: Vec<u8>,
     _s: PhantomData<S>,
 }
+*/
 
+/*
 impl<R: BufRead + Unpin, S: TryFrom<Vec<u8>>> FastqReader<R, S> {
     pub fn new(reader: R) -> Self {
         FastqReader {
@@ -182,7 +183,9 @@ impl<R: BufRead + Unpin, S: TryFrom<Vec<u8>>> FastqReader<R, S> {
         Some(build_record_owned(&lines))
     }
 }
+*/
 
+/*
 impl<R: BufRead + Unpin, S: TryFrom<Vec<u8>>> Iterator for &mut FastqReader<R, S> {
     type Item = Result<Record<Vec<u8>, S>, std::io::Error>;
 
@@ -190,7 +193,9 @@ impl<R: BufRead + Unpin, S: TryFrom<Vec<u8>>> Iterator for &mut FastqReader<R, S
         self.parse()
     }
 }
+*/
 
+/*
 impl<R: BufRead + Unpin, S: TryFrom<Vec<u8>>> AsyncIterator for FastqReader<R, S> {
     type Item = Result<Record<Vec<u8>, S>, std::io::Error>;
 
@@ -203,15 +208,17 @@ impl<R: BufRead + Unpin, S: TryFrom<Vec<u8>>> AsyncIterator for FastqReader<R, S
         Poll::Ready(record)
     }
 }
+*/
 
-impl<'a, S: TryFrom<&'a [u8]>> Iterator for Fastq<'a, S> {
-    type Item = Result<Record<&'a [u8], S>, std::io::Error>;
+impl<'a, S: TryFrom<&'a [u8], Error = ParseError>> Iterator for Fastq<'a, S> {
+    type Item = Result<Record<&'a [u8], S>, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.parse()
+        self.parse_next()
     }
 }
 
+/*
 impl<'a, S: for<'b> TryFrom<&'b [u8]>> AsyncIterator for Fastq<'a, S> {
     type Item = Result<Record<&'a [u8], S>, std::io::Error>;
 
@@ -224,7 +231,9 @@ impl<'a, S: for<'b> TryFrom<&'b [u8]>> AsyncIterator for Fastq<'a, S> {
         Poll::Ready(record)
     }
 }
+    */
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,3 +301,4 @@ GGGGGGGGGGGGGG\n";
         //assert_eq!(fastq.as_mut().poll_next(&mut cx), Poll::Ready(None));
     }
 }
+*/

@@ -1,4 +1,5 @@
-use std::marker::PhantomData;
+use core::fmt::Debug;
+use core::marker::PhantomData;
 
 pub use crate::error::ParseError;
 
@@ -41,6 +42,15 @@ impl From<Phred> for f64 {
     }
 }
 
+pub trait Decoder {
+    type Item;
+    type Error: Debug + 'static;
+
+    fn decode(&mut self, src: &[u8]) -> Result<Vec<Self::Item>, Self::Error>;
+
+    fn decode_eof(&mut self) -> Result<Vec<Self::Item>, Self::Error>;
+}
+
 pub trait RecordData {
     type Buf: AsRef<[u8]>;
 }
@@ -53,7 +63,7 @@ impl RecordData for Vec<u8> {
     type Buf = Self;
 }
 
-pub struct Record<B: RecordData, S: TryFrom<B::Buf> = B> {
+pub struct Record<B: RecordData, S: TryFrom<B::Buf, Error = ParseError> = B> {
     pub(crate) raw_fields: B::Buf,
     pub(crate) raw_seq: B::Buf,
     pub(crate) raw_quality: Option<B::Buf>,
@@ -76,10 +86,26 @@ impl<'a, S: TryFrom<&'a [u8], Error = ParseError>> Record<&'a [u8], S> {
     pub fn quality(&self) -> Result<&[Phred], ParseError> {
         match self.raw_quality {
             None => Err(ParseError::InvalidQuality),
-            Some(_) => unimplemented!(),
+            Some(_) => todo!(),
         }
     }
 }
+
+/*
+impl<S: TryFrom<Vec<u8>, Error = ParseError>> Record<Vec<u8>, S> {
+    pub fn fields(&self) -> &[u8] {
+        todo!()
+    }
+
+    pub fn seq(&self) -> Result<S, ParseError> {
+        todo!()
+    }
+
+    pub fn quality(&self) -> Result<Vec<Phred>, ParseError> {
+        todo!()
+    }
+}
+    */
 
 #[cfg(test)]
 mod tests {
