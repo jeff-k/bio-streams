@@ -1,7 +1,11 @@
 use core::fmt::Debug;
 use core::marker::PhantomData;
 
-pub use crate::error::ParseError;
+mod seqrecord;
+pub use seqrecord::Record;
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub struct Cigar(u8);
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 #[repr(transparent)]
@@ -41,71 +45,6 @@ impl From<Phred> for f64 {
         phred.to_prob()
     }
 }
-
-pub trait Decoder {
-    type Item;
-    type Error: Debug + 'static;
-
-    fn decode(&mut self, src: &[u8]) -> Result<Vec<Self::Item>, Self::Error>;
-
-    fn decode_eof(&mut self) -> Result<Vec<Self::Item>, Self::Error>;
-}
-
-pub trait RecordData {
-    type Buf: AsRef<[u8]>;
-}
-
-impl RecordData for &[u8] {
-    type Buf = Self;
-}
-
-impl RecordData for Vec<u8> {
-    type Buf = Self;
-}
-
-pub struct Record<B: RecordData, S: TryFrom<B::Buf, Error = ParseError> = B> {
-    pub(crate) raw_fields: B::Buf,
-    pub(crate) raw_seq: B::Buf,
-    pub(crate) raw_quality: Option<B::Buf>,
-    pub(crate) _p: PhantomData<S>,
-}
-
-impl<'a, S: TryFrom<&'a [u8], Error = ParseError>> Record<&'a [u8], S> {
-    pub fn fields(&self) -> &'a [u8] {
-        self.raw_fields
-    }
-
-    /// # Errors
-    /// Parsing into the target sequence type may fail on bad characters
-    pub fn seq(&self) -> Result<S, ParseError> {
-        S::try_from(self.raw_seq)
-    }
-
-    /// # Errors
-    /// Parsing phred qualities may be fallible
-    pub fn quality(&self) -> Result<&[Phred], ParseError> {
-        match self.raw_quality {
-            None => Err(ParseError::InvalidQuality),
-            Some(_) => todo!(),
-        }
-    }
-}
-
-/*
-impl<S: TryFrom<Vec<u8>, Error = ParseError>> Record<Vec<u8>, S> {
-    pub fn fields(&self) -> &[u8] {
-        todo!()
-    }
-
-    pub fn seq(&self) -> Result<S, ParseError> {
-        todo!()
-    }
-
-    pub fn quality(&self) -> Result<Vec<Phred>, ParseError> {
-        todo!()
-    }
-}
-    */
 
 #[cfg(test)]
 mod tests {

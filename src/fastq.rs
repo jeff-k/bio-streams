@@ -1,3 +1,4 @@
+use futures;
 use futures::Stream as AsyncIterator;
 use std::io;
 use std::io::BufRead;
@@ -7,8 +8,9 @@ use std::pin::Pin;
 use std::task::Poll;
 
 pub use crate::error::ParseError;
-pub use crate::record::{Decoder, Phred, Record};
+pub use crate::record::{Phred, Record};
 
+/*
 fn build_record_borrowed<'a, S: TryFrom<&'a [u8], Error = ParseError>>(
     lines: &[&'a [u8]; 4],
 ) -> Result<Record<&'a [u8], S>, ParseError> {
@@ -29,95 +31,85 @@ fn build_record_borrowed<'a, S: TryFrom<&'a [u8], Error = ParseError>>(
         return Err(ParseError::LengthMismatch);
     }
 
+/*
     Ok(Record {
         raw_fields: &lines[0][1..],
         raw_seq: lines[1],
         raw_quality: Some(lines[3]),
         _p: PhantomData,
     })
+*/
+    todo!()
 }
+*/
 
-fn build_record_owned<S: TryFrom<Vec<u8>, Error = ParseError>>(
-    lines: &[&[u8]; 4],
-) -> Result<Record<Vec<u8>, S>, ParseError> {
-    // test for valid header start
+pub struct Fastq;
 
-    if lines[0][0] != b'@' {
-        return Err(ParseError::InvalidDelimiter);
+impl Fastq {
+    pub fn from_slice<'a, S>(
+        data: &'a [u8],
+    ) -> impl Iterator<Item = Result<Record<'a, S>, ParseError>> + 'a
+    where
+        S: for<'b> TryFrom<&'b [u8], Error = ParseError> + 'a,
+    {
+        todo!();
+        std::iter::empty()
     }
 
-    // test for valid separator line
-    let sep_pos = lines[2][0];
-    if !sep_pos == b'+' {
-        return Err(ParseError::InvalidDelimiter);
+    pub fn from_reader<R, S>(
+        reader: R,
+    ) -> impl Iterator<Item = Result<Record<'static, S>, ParseError>>
+    where
+        R: BufRead,
+        S: for<'b> TryFrom<&'b [u8], Error = ParseError>,
+    {
+        todo!();
+        std::iter::empty()
     }
 
-    // test that quality and sequence strings are equal length
-    if lines[1].len() != lines[3].len() {
-        return Err(ParseError::LengthMismatch);
+    pub fn stream<'a, S>(
+        data: &'a [u8],
+    ) -> impl futures::Stream<Item = Result<Record<'a, S>, ParseError>> + 'a
+    where
+        S: for<'b> TryFrom<&'b [u8], Error = ParseError> + 'static,
+    {
+        todo!();
+        futures::stream::empty()
     }
 
-    Ok(Record {
-        raw_fields: lines[0][1..].to_vec(),
-        raw_seq: lines[1].to_vec(),
-        raw_quality: Some(lines[3].to_vec()),
-        _p: PhantomData,
-    })
-}
-
-pub struct FastqDecoder<S: TryFrom<Vec<u8>, Error = ParseError>> {
-    buffer: Vec<u8>,
-    _s: PhantomData<S>,
-}
-
-impl<S: TryFrom<Vec<u8>, Error = ParseError> + 'static> Decoder for FastqDecoder<S> {
-    type Item = Record<Vec<u8>, S>;
-    type Error = ParseError;
-
-    fn decode(&mut self, src: &[u8]) -> Result<Vec<Self::Item>, Self::Error> {
-        todo!()
-    }
-
-    fn decode_eof(&mut self) -> Result<Vec<Self::Item>, Self::Error> {
-        todo!()
+    pub fn stream_from_reader<R, S>(
+        reader: R,
+    ) -> impl futures::Stream<Item = Result<Record<'static, S>, ParseError>>
+    where
+        R: futures::io::AsyncBufRead + Unpin,
+        S: for<'b> TryFrom<&'b [u8], Error = ParseError> + 'static,
+    {
+        todo!();
+        futures::stream::empty()
     }
 }
 
-pub struct Fastq<'a, S: TryFrom<&'a [u8]> = Vec<u8>> {
-    buffer: &'a [u8],
-    pos: usize,
-    _s: PhantomData<S>,
-}
+/*
+fn parse_next(&mut self) -> Option<Result<Record<&'src [u8], S>, ParseError>> {
+    if self.pos >= self.buffer.len() {
+        return None;
+    }
 
-impl<'src, S: TryFrom<&'src [u8], Error = ParseError>> Fastq<'src, S> {
-    pub fn new(buf: &'src [u8]) -> Self {
-        Fastq {
-            buffer: buf,
-            pos: 0,
-            _s: PhantomData,
+    let mut lines: [&[u8]; 4] = [&[]; 4];
+
+    for crs_i in &mut lines {
+        if let Some(n) = self.buffer[self.pos..].iter().position(|&b| b == b'\n') {
+            *crs_i = &self.buffer[self.pos..self.pos + n];
+            self.pos += n + 1;
+        } else {
+            // truncated records
+            return Some(Err(ParseError::TruncatedRecord));
         }
     }
 
-    fn parse_next(&mut self) -> Option<Result<Record<&'src [u8], S>, ParseError>> {
-        if self.pos >= self.buffer.len() {
-            return None;
-        }
-
-        let mut lines: [&[u8]; 4] = [&[]; 4];
-
-        for crs_i in &mut lines {
-            if let Some(n) = self.buffer[self.pos..].iter().position(|&b| b == b'\n') {
-                *crs_i = &self.buffer[self.pos..self.pos + n];
-                self.pos += n + 1;
-            } else {
-                // truncated records
-                return Some(Err(ParseError::TruncatedRecord));
-            }
-        }
-
-        Some(build_record_borrowed(&lines))
-    }
+    Some(build_record_borrowed(&lines))
 }
+*/
 
 /*
 pub struct FastqReader<R: BufRead + Unpin, S: TryFrom<Vec<u8>> = Vec<u8>> {
@@ -210,11 +202,17 @@ impl<R: BufRead + Unpin, S: TryFrom<Vec<u8>>> AsyncIterator for FastqReader<R, S
 }
 */
 
-impl<'a, S: TryFrom<&'a [u8], Error = ParseError>> Iterator for Fastq<'a, S> {
-    type Item = Result<Record<&'a [u8], S>, ParseError>;
+struct FastqIterator<'a, S> {
+    data: &'a [u8],
+    position: usize,
+    _p: PhantomData<S>,
+}
+
+impl<'a, S: for<'b> TryFrom<&'b [u8], Error = ParseError>> Iterator for FastqIterator<'a, S> {
+    type Item = Result<Record<'a, S>, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.parse_next()
+        todo!()
     }
 }
 
