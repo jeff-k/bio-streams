@@ -1,5 +1,5 @@
-use futures;
-use futures::Stream as AsyncIterator;
+use futures::{AsyncBufRead, Stream, task::Context};
+use std::collections::VecDeque;
 use std::io;
 use std::io::BufRead;
 use std::iter::Iterator;
@@ -9,39 +9,6 @@ use std::task::Poll;
 
 pub use crate::error::ParseError;
 pub use crate::record::{Phred, Record};
-
-/*
-fn build_record_borrowed<'a, S: TryFrom<&'a [u8], Error = ParseError>>(
-    lines: &[&'a [u8]; 4],
-) -> Result<Record<&'a [u8], S>, ParseError> {
-    // test for valid header start
-
-    if lines[0][0] != b'@' {
-        return Err(ParseError::InvalidDelimiter);
-    }
-
-    // test for valid separator line
-    let sep_pos = lines[2][0];
-    if !sep_pos == b'+' {
-        return Err(ParseError::InvalidDelimiter);
-    }
-
-    // test that quality and sequence strings are equal length
-    if lines[1].len() != lines[3].len() {
-        return Err(ParseError::LengthMismatch);
-    }
-
-/*
-    Ok(Record {
-        raw_fields: &lines[0][1..],
-        raw_seq: lines[1],
-        raw_quality: Some(lines[3]),
-        _p: PhantomData,
-    })
-*/
-    todo!()
-}
-*/
 
 pub struct Fastq;
 
@@ -86,6 +53,43 @@ impl Fastq {
     {
         todo!();
         futures::stream::empty()
+    }
+}
+
+struct FastqIterator<'a, S> {
+    data: &'a [u8],
+    position: usize,
+    _p: PhantomData<S>,
+}
+
+impl<'a, S: for<'b> TryFrom<&'b [u8], Error = ParseError>> Iterator for FastqIterator<'a, S> {
+    type Item = Result<Record<'a, S>, ParseError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+    }
+}
+
+struct FastqReaderIterator<R, S> {
+    reader: R,
+    buffer: Vec<u8>,
+    _p: PhantomData<S>,
+}
+
+struct FastqReaderStream<R, S: for<'b> TryFrom<&'b [u8], Error = ParseError>> {
+    reader: R,
+    buffer: Vec<u8>,
+    cur: VecDeque<Result<Record<'static, S>, ParseError>>,
+    _p: PhantomData<S>,
+}
+
+impl<R: AsyncBufRead + Unpin, S: for<'b> TryFrom<&'b [u8], Error = ParseError>> Stream
+    for FastqReaderStream<R, S>
+{
+    type Item = Result<Record<'static, S>, ParseError>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        todo!()
     }
 }
 
@@ -201,21 +205,6 @@ impl<R: BufRead + Unpin, S: TryFrom<Vec<u8>>> AsyncIterator for FastqReader<R, S
     }
 }
 */
-
-struct FastqIterator<'a, S> {
-    data: &'a [u8],
-    position: usize,
-    _p: PhantomData<S>,
-}
-
-impl<'a, S: for<'b> TryFrom<&'b [u8], Error = ParseError>> Iterator for FastqIterator<'a, S> {
-    type Item = Result<Record<'a, S>, ParseError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        todo!()
-    }
-}
-
 /*
 impl<'a, S: for<'b> TryFrom<&'b [u8]>> AsyncIterator for Fastq<'a, S> {
     type Item = Result<Record<&'a [u8], S>, std::io::Error>;
@@ -298,5 +287,37 @@ GGGGGGGGGGGGGG\n";
 
         //assert_eq!(fastq.as_mut().poll_next(&mut cx), Poll::Ready(None));
     }
+}
+*/
+/*
+fn build_record_borrowed<'a, S: TryFrom<&'a [u8], Error = ParseError>>(
+    lines: &[&'a [u8]; 4],
+) -> Result<Record<&'a [u8], S>, ParseError> {
+    // test for valid header start
+
+    if lines[0][0] != b'@' {
+        return Err(ParseError::InvalidDelimiter);
+    }
+
+    // test for valid separator line
+    let sep_pos = lines[2][0];
+    if !sep_pos == b'+' {
+        return Err(ParseError::InvalidDelimiter);
+    }
+
+    // test that quality and sequence strings are equal length
+    if lines[1].len() != lines[3].len() {
+        return Err(ParseError::LengthMismatch);
+    }
+
+/*
+    Ok(Record {
+        raw_fields: &lines[0][1..],
+        raw_seq: lines[1],
+        raw_quality: Some(lines[3]),
+        _p: PhantomData,
+    })
+*/
+    todo!()
 }
 */
