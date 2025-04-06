@@ -10,10 +10,11 @@ use std::task::Poll;
 pub use crate::error::ParseError;
 pub use crate::record::{Alignment, Phred, PseudoAlignment, Record};
 
-pub struct Sam;
+pub struct SamRecord;
+pub struct SamAlignment;
 
-impl Sam {
-    pub fn rec_from_slice<'a, S>(
+impl SamRecord {
+    pub fn from_slice<'a, S>(
         data: &'a [u8],
     ) -> impl Iterator<Item = Result<Record<'a, S>, ParseError>> + 'a
     where
@@ -23,7 +24,7 @@ impl Sam {
         std::iter::empty()
     }
 
-    pub fn rec_from_reader<R, S>(
+    pub fn from_reader<R, S>(
         reader: R,
     ) -> impl Iterator<Item = Result<Record<'static, S>, ParseError>>
     where
@@ -34,7 +35,7 @@ impl Sam {
         std::iter::empty()
     }
 
-    pub fn rec_stream<'a, S>(
+    pub fn stream<'a, S>(
         data: &'a [u8],
     ) -> impl futures::Stream<Item = Result<Record<'a, S>, ParseError>> + 'a
     where
@@ -44,9 +45,53 @@ impl Sam {
         futures::stream::empty()
     }
 
-    pub fn rec_stream_from_reader<R, S>(
+    pub fn stream_from_reader<R, S>(
         reader: R,
     ) -> impl futures::Stream<Item = Result<Record<'static, S>, ParseError>>
+    where
+        R: futures::io::AsyncBufRead + Unpin,
+        S: for<'b> TryFrom<&'b [u8], Error = ParseError> + 'static,
+    {
+        todo!();
+        futures::stream::empty()
+    }
+}
+
+impl SamAlignment {
+    pub fn from_slice<'a, S>(
+        data: &'a [u8],
+    ) -> impl Iterator<Item = Result<Alignment<'a, S>, ParseError>> + 'a
+    where
+        S: for<'b> TryFrom<&'b [u8], Error = ParseError> + 'a,
+    {
+        todo!();
+        std::iter::empty()
+    }
+
+    pub fn from_reader<R, S>(
+        reader: R,
+    ) -> impl Iterator<Item = Result<Alignment<'static, S>, ParseError>>
+    where
+        R: BufRead,
+        S: for<'b> TryFrom<&'b [u8], Error = ParseError>,
+    {
+        todo!();
+        std::iter::empty()
+    }
+
+    pub fn stream<'a, S>(
+        data: &'a [u8],
+    ) -> impl futures::Stream<Item = Result<Alignment<'a, S>, ParseError>> + 'a
+    where
+        S: for<'b> TryFrom<&'b [u8], Error = ParseError> + 'static,
+    {
+        todo!();
+        futures::stream::empty()
+    }
+
+    pub fn stream_from_reader<R, S>(
+        reader: R,
+    ) -> impl futures::Stream<Item = Result<Alignment<'static, S>, ParseError>>
     where
         R: futures::io::AsyncBufRead + Unpin,
         S: for<'b> TryFrom<&'b [u8], Error = ParseError> + 'static,
