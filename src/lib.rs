@@ -16,6 +16,6 @@ mod error;
 //pub mod fasta;
 pub mod fastq;
 pub mod record;
-//pub mod sam;
+pub mod sam;
 //pub mod gfa;
 //pub mod paf;

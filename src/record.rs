@@ -4,6 +4,9 @@ use core::marker::PhantomData;
 mod seqrecord;
 pub use seqrecord::Record;
 
+mod alignment;
+pub use alignment::{Alignment, PseudoAlignment};
+
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Cigar(u8);
 
