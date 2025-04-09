@@ -1,4 +1,5 @@
 use futures::{AsyncBufRead, Stream, task::Context};
+use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::io;
 use std::io::BufRead;
@@ -72,13 +73,75 @@ impl<'a, S: for<'b> TryFrom<&'b [u8], Error = ParseError>> Iterator for FastqIte
 
 struct FastqReaderIterator<R, S> {
     reader: R,
-    buffer: Vec<u8>,
+    buf: Vec<u8>,
     _p: PhantomData<S>,
+}
+
+impl<R: BufRead, S: for<'b> TryFrom<&'b [u8], Error = ParseError>> Iterator
+    for FastqReaderIterator<R, S>
+{
+    type Item = Result<Record<'static, S>, ParseError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.buf.clear();
+
+        let mut crs: [usize; 4] = [0; 4];
+        let mut t_bs = 0;
+
+        //let reader = self.reader.get_mut();
+
+        for i in 0..4 {
+            match self.reader.read_until(b'\n', &mut self.buf) {
+                Ok(0) => {
+                    return if i == 0 {
+                        None
+                    } else {
+                        return Some(Err(ParseError::TruncatedRecord));
+                    };
+                }
+                Ok(n) => {
+                    crs[i] = n + t_bs;
+                    t_bs += n;
+                }
+                Err(_e) => return Some(Err(ParseError::IoError)),
+            }
+        }
+
+        // validation goes here
+
+        if self.buf[0] != b'@' {
+            return Some(Err(ParseError::InvalidDelimiter));
+        }
+
+        // test for valid separator line
+        let sep_pos = self.buf[1] + 1;
+        if !sep_pos == b'+' {
+            return Some(Err(ParseError::InvalidDelimiter));
+        }
+
+        // test that quality and sequence strings are equal length
+        let seq_len = crs[1] - crs[0];
+        let qual_len = crs[3] - crs[2];
+
+        if seq_len != qual_len {
+            return Some(Err(ParseError::LengthMismatch));
+        }
+
+        let r = Record {
+            data: Cow::Owned(self.buf.clone()),
+            raw_header: 0..(crs[0] - 1),
+            raw_seq: crs[0]..(crs[1] - 1),
+            raw_qual: Some(crs[2]..(crs[3] - 1)),
+            _p: PhantomData,
+        };
+
+        Some(Ok(r))
+    }
 }
 
 struct FastqReaderStream<R, S: for<'b> TryFrom<&'b [u8], Error = ParseError>> {
     reader: R,
-    buffer: Vec<u8>,
+    buf: Vec<u8>,
     cur: VecDeque<Result<Record<'static, S>, ParseError>>,
     _p: PhantomData<S>,
 }
@@ -120,74 +183,6 @@ pub struct FastqReader<R: BufRead + Unpin, S: TryFrom<Vec<u8>> = Vec<u8>> {
     reader: Pin<Box<R>>,
     buffer: Vec<u8>,
     _s: PhantomData<S>,
-}
-*/
-
-/*
-impl<R: BufRead + Unpin, S: TryFrom<Vec<u8>>> FastqReader<R, S> {
-    pub fn new(reader: R) -> Self {
-        FastqReader {
-            reader: Box::pin(reader),
-            buffer: Vec::<u8>::with_capacity(1024),
-            _s: PhantomData,
-        }
-    }
-
-    fn parse(&mut self) -> Option<Result<Record<Vec<u8>, S>, std::io::Error>> {
-        self.buffer.clear();
-
-        // total bytes read
-        let mut t_bs = 0;
-
-        // indices of carriage returns
-        let mut crs: [usize; 4] = [0; 4];
-
-        let reader = self.reader.as_mut().get_mut();
-
-        for i in 0..4 {
-            match reader.read_until(b'\n', &mut self.buffer) {
-                // end of file
-                Ok(0) => {
-                    return if i == 0 {
-                        // proper file end
-                        None
-                    } else {
-                        // truncated records
-                        return Some(Err(io::Error::new(
-                            io::ErrorKind::UnexpectedEof,
-                            "Truncated FASTQ record",
-                        )));
-                    };
-                }
-                Ok(n) => {
-                    crs[i] = n + t_bs;
-                    t_bs += n;
-                }
-                Err(e) => return Some(Err(e)),
-            }
-        }
-
-        let buf = unsafe { std::slice::from_raw_parts(self.buffer.as_ptr(), self.buffer.len()) };
-
-        let lines: [&[u8]; 4] = [
-            &buf[0..crs[0] - 1],
-            &buf[crs[0]..crs[1] - 1],
-            &buf[crs[1]..crs[2] - 1],
-            &buf[crs[2]..crs[3] - 1],
-        ];
-
-        Some(build_record_owned(&lines))
-    }
-}
-*/
-
-/*
-impl<R: BufRead + Unpin, S: TryFrom<Vec<u8>>> Iterator for &mut FastqReader<R, S> {
-    type Item = Result<Record<Vec<u8>, S>, std::io::Error>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.parse()
-    }
 }
 */
 
@@ -294,21 +289,6 @@ fn build_record_borrowed<'a, S: TryFrom<&'a [u8], Error = ParseError>>(
     lines: &[&'a [u8]; 4],
 ) -> Result<Record<&'a [u8], S>, ParseError> {
     // test for valid header start
-
-    if lines[0][0] != b'@' {
-        return Err(ParseError::InvalidDelimiter);
-    }
-
-    // test for valid separator line
-    let sep_pos = lines[2][0];
-    if !sep_pos == b'+' {
-        return Err(ParseError::InvalidDelimiter);
-    }
-
-    // test that quality and sequence strings are equal length
-    if lines[1].len() != lines[3].len() {
-        return Err(ParseError::LengthMismatch);
-    }
 
 /*
     Ok(Record {
