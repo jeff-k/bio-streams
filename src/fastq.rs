@@ -215,7 +215,6 @@ impl<'a, S: for<'b> TryFrom<&'b [u8]>> AsyncIterator for Fastq<'a, S> {
 }
     */
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,6 +233,7 @@ CATCGACTACGGCG
 +
 GGGGGGGGGGGGGG\n";
 
+    /*
     #[test]
     fn test_fastq_iterator() {
         let mut fastq: Fastq<&[u8]> = Fastq::new(FQ1);
@@ -252,7 +252,16 @@ GGGGGGGGGGGGGG\n";
 
         assert!(fastq.next().is_none(), "Expected no more records");
     }
+    */
 
+    #[test]
+    fn test_fastq_reader_iterator() {
+        let reader = Cursor::new(FQ1);
+
+        let mut fq = Fastq::from_reader::<Cursor<&[u8]>, Vec<u8>>(reader);
+    }
+
+    /*
     #[test]
     fn test_fastq_poll_next() {
         let reader = Cursor::new(FQ1);
@@ -282,22 +291,5 @@ GGGGGGGGGGGGGG\n";
 
         //assert_eq!(fastq.as_mut().poll_next(&mut cx), Poll::Ready(None));
     }
+    */
 }
-*/
-/*
-fn build_record_borrowed<'a, S: TryFrom<&'a [u8], Error = ParseError>>(
-    lines: &[&'a [u8]; 4],
-) -> Result<Record<&'a [u8], S>, ParseError> {
-    // test for valid header start
-
-/*
-    Ok(Record {
-        raw_fields: &lines[0][1..],
-        raw_seq: lines[1],
-        raw_quality: Some(lines[3]),
-        _p: PhantomData,
-    })
-*/
-    todo!()
-}
-*/
